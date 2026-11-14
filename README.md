@@ -1,5 +1,5 @@
 # Space Monkeys — Frontend
 
-NASA Space Apps Challenge: **calendário de atividade de queimadas** a partir de focos de calor (active fire hotspots) detectados por satélite.
+NASA Space Apps Challenge: a **burning activity calendar** built from satellite-detected active fire hotspots.
 
-O objetivo é harmonizar registros de diferentes sensores (ex.: MODIS, VIIRS) em uma série consistente e oferecer uma aplicação web para que equipes de alerta precoce, cientistas e gestores de território examinem padrões históricos de fogo, condições anômalas e períodos críticos em uma área de interesse.
+The goal is to harmonize records from different sensors (e.g. MODIS, VIIRS) into a consistent time series and provide a web application that lets early warning and emergency responders, scientists, and land managers examine historical fire patterns, unusual conditions, and critical periods within a selected area of interest.
