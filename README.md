@@ -22,28 +22,27 @@ Set `VITE_API_BASE_URL` in `.env` and restart Vite after making changes. The def
 contracts/                    Contract supplied by the backend
 src/
   main.tsx                    React entrypoint
-  app/                        Application composition and configured services
-    components/               Application sidebar, topbar, indicators, and dialog
+  app/                        Application composition, page routing and configured services
+    components/               Sidebar, topbar and dialog
   shared/
-    api/                      HTTP transport, errors, types, and request hook
+    api/                      HTTP transport, errors, types and request hooks
       generated/schema.ts     Generated types; do not edit manually
+    geo/                      Lon/lat projection onto the Natural Earth basemap
     ui/                       Shared components
-    lib/                      Number formatting and CSV downloads
-    constants/                Shared geographic options
+    lib/                      Number formatting
     styles/                   Global styles
   features/
     history/
-      api/                    Calendar, climatology, anomalies, season, and trend
-      components/             Historical data presentation
-      date-selection/         Demo date range selection
-      demo/                   Demonstration data and calculations only
-      model/                  Calendar presentation types and formatting
+      api/                    Calendar, climatology, anomalies, season, trend and map
+      components/             Burning calendar, period overview, analysis, anomaly scan
+      date-selection/         Period picker
+      model/                  Area, period and presentation helpers (pure, tested)
       styles/
-    live/api/                 Active events, detections, and SSE stream
-    system/api/               Health and worker/source status
-    map/                      Map components, model, styles, and sample data
-    sensors/                  Sensor controls and display metadata
-    prevention-demo/          Prototype outside the current contract
+    forecast/                 7-day forecast client and page
+    live/                     Live fires client, SSE helpers and table
+    system/                   Health and worker/source status
+    map/                      Georeferenced map (history cells, live fires, forecast)
+    sensors/                  Sensor descriptions and harmonization panel
     settings/                 Session preferences
 tests/                        Domain tests and integration tests with simulated transport
 scripts/                      Contract and type verification
@@ -52,9 +51,9 @@ docs/                         Integration decisions and guidance
 
 ## Integration status
 
-The HTTP layer and services support all 13 routes in the contract. The current screens still use explicit demonstrations; setting the URL does not automatically replace the displayed data. Connect components to services one feature at a time, using loading/error states and the API's units. See [`docs/backend-integration.md`](docs/backend-integration.md).
+Every page reads the Space Monkeys API; no screen uses fixtures. Coverage is Brazil (biomes or a lon/lat box), with fire cell-days as the unit. See [`docs/backend-integration.md`](docs/backend-integration.md) for which route feeds which page and what the backend does not provide yet.
 
-Contract version `0.2.0-draft` marks the historical routes as planned. Risk forecasting and preventive alert management have no endpoints in this contract and remain isolated in `prevention-demo`. Do not infer risk probabilities from fire counts.
+The API must allow this origin in `CORS_ORIGINS` (`http://localhost:8443` in development). The forecast needs `FIRMS_MAP_KEY` on the server; without it the Risk Forecast page says so.
 
 ## Verification
 

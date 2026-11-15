@@ -13,29 +13,29 @@ export type WorkspacePage = (typeof pages)[number]["name"];
 export const titles: Record<WorkspacePage, [string, string]> = {
   Overview: [
     "Monitoring Overview",
-    "Satellite observations, historical context, and preventive assessment review.",
+    "Fire activity in the selected area and period, live fires and the 7-day outlook.",
   ],
-  "Fire Map": ["Global Fire Map", "Explore thermal anomalies across the world."],
+  "Fire Map": [
+    "Fire Map",
+    "Where fire was detected in the selected area and period, and where it burns now.",
+  ],
   "Burning Calendar": [
     "Harmonized Fire Activity & Burning Calendar",
-    "Explore the seasonal fire signal across sensors, regions and two decades of historical context.",
+    "The seasonal fire signal of an area, day by day, against its normal year since 2000.",
   ],
   "Historical Analysis": [
     "Historical Analysis",
-    "Put current activity into a longer-term perspective.",
+    "MODIS, VIIRS and the harmonized record side by side, and the long-term trend.",
   ],
   "Anomaly Alerts": [
     "Anomaly Alerts",
-    "Review unusual observation patterns with historical context and source provenance.",
+    "Months with fire activity outside the normal range, for every biome.",
   ],
   "Risk Forecast": [
-    "Fire Risk Forecast",
-    "Review supplied regional assessments, forecast validity, and uncertainty.",
+    "7-Day Fire Forecast",
+    "Probability of a VIIRS fire detection per 0.25° cell for the next seven days.",
   ],
-  "Alert Center": [
-    "Preventive Alert Center",
-    "Review supplied advisories, their rationale, and recommended preventive actions.",
-  ],
+  "Alert Center": ["Alert Center", "Advisories issued by the backend."],
   "Data Sources": ["Satellite Data Sources", "Understand the sensors behind the observations."],
   Settings: ["Workspace Settings", "Make OrbitBurn work for your mission."],
 };

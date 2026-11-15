@@ -454,3 +454,211 @@ button.hw-day:focus-visible {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+/* shared pages (Overview, Fire Map, Historical Analysis, Anomaly Alerts, Forecast, Data Sources) */
+.hw-kpis-2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.hw-overview-row {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(220px, 1fr);
+  gap: var(--space-md);
+  margin: var(--space-md) 0;
+}
+.hw-overview-row > .hw-card {
+  align-content: start;
+}
+.hw-map-panel {
+  padding-bottom: var(--space-md);
+}
+.hw-pad {
+  padding: 0 var(--space-lg) var(--space-md);
+}
+.hw-check {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--text-small);
+  color: var(--text-secondary);
+}
+.hw-spark {
+  width: 100%;
+  height: 26px;
+}
+.hw-spark polyline {
+  fill: none;
+  stroke: var(--orange);
+  stroke-width: 1.2;
+  vector-effect: non-scaling-stroke;
+}
+.hw-line {
+  fill: none;
+  stroke-width: 1.6;
+}
+.hw-line.harm {
+  stroke: var(--text-primary);
+  stroke-width: 2;
+}
+.hw-line.modis {
+  stroke: var(--sensor-modis);
+}
+.hw-line.viirs {
+  stroke: var(--sensor-viirs);
+  stroke-dasharray: 4 3;
+}
+.hw-swatch.line {
+  height: 0;
+  width: 14px;
+  border-top: 2px solid;
+}
+.hw-swatch.line.harm {
+  border-color: var(--text-primary);
+}
+.hw-swatch.line.modis {
+  border-color: var(--sensor-modis);
+}
+.hw-swatch.line.viirs {
+  border-color: var(--sensor-viirs);
+  border-top-style: dashed;
+}
+.hw-table-wrap {
+  padding: 0 var(--space-lg) var(--space-md);
+  overflow-x: auto;
+}
+.hw-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-body);
+  color: var(--text-secondary);
+}
+.hw-table th {
+  text-align: left;
+  font-size: var(--text-caption);
+  font-weight: 500;
+  color: var(--text-subtle);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  padding: 6px 8px;
+  border-bottom: var(--border-thin) solid var(--border);
+}
+.hw-table td {
+  padding: 6px 8px;
+  border-bottom: var(--border-thin) solid #2b3a4666;
+  white-space: nowrap;
+}
+.hw-table td:first-child {
+  color: var(--text-primary);
+}
+.hw-good {
+  color: var(--green);
+}
+.hw-bad {
+  color: var(--orange);
+  white-space: normal !important;
+}
+.hw-facts {
+  margin: 0;
+  padding: var(--space-sm) var(--space-lg) var(--space-md) calc(var(--space-lg) + 14px);
+  display: grid;
+  gap: var(--space-xs);
+  font-size: var(--text-small);
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+.hw-matrix {
+  display: grid;
+  gap: 3px;
+  padding: 0 var(--space-lg) var(--space-md);
+  overflow-x: auto;
+}
+.hw-matrix-row {
+  display: grid;
+  grid-template-columns: 120px repeat(12, minmax(28px, 1fr));
+  gap: 3px;
+  align-items: center;
+  min-width: 520px;
+}
+.hw-matrix-row.head span {
+  font-size: var(--text-caption);
+  color: var(--text-subtle);
+  text-align: center;
+}
+.hw-matrix-row.head span:first-child,
+.hw-matrix-row > .text-link {
+  text-align: left;
+  font-size: var(--text-small);
+}
+.hw-mcell {
+  height: 22px;
+  border-radius: 2px;
+  display: grid;
+  place-items: center;
+  font-size: 9px;
+  color: #0e151c;
+  background: var(--hw-l0);
+}
+.hw-mcell.within {
+  background: #2c4a44;
+}
+.hw-mcell.above {
+  background: var(--hw-l5);
+}
+.hw-mcell.below {
+  background: #4f7ea3;
+}
+.hw-mcell.partial {
+  background: repeating-linear-gradient(135deg, transparent 0 3px, #8498a844 3px 4px);
+}
+.hw-mcell.nodata {
+  background: transparent;
+  border: 1px dashed #8498a844;
+}
+.geo-swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  vertical-align: -1px;
+}
+.geo-swatch.dot {
+  border-radius: 50%;
+}
+.geo-swatch.l1 {
+  background: #7a3424;
+}
+.geo-swatch.l3 {
+  background: #e2582f;
+}
+.geo-swatch.l5 {
+  background: #ffd2a8;
+}
+.geo-swatch.abi {
+  background: #b48cff;
+}
+.geo-swatch.viirs {
+  background: var(--sensor-viirs);
+}
+.geo-swatch.modis {
+  background: var(--sensor-modis);
+}
+.geo-swatch.multi {
+  background: #fff;
+}
+.geo-swatch.fc1 {
+  background: #ffd16655;
+}
+.geo-swatch.fc2 {
+  background: #ffb24d99;
+}
+.geo-swatch.fc3 {
+  background: #ff7a3dcc;
+}
+.geo-swatch.fc4 {
+  background: #ff3d2e;
+}
+@media (max-width: 900px) {
+  .hw-overview-row,
+  .hw-kpis-2 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

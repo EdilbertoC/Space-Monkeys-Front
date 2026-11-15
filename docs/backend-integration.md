@@ -25,6 +25,8 @@ Generated types check consumers at compile time. The transport rejects invalid J
 | `subscribeFires(http, handlers)` | SSE | `/fires/stream` |
 | `systemApi.getHealth` | GET | `/health` |
 | `systemApi.getStatus` | GET | `/status` |
+| `forecastApi.getForecast` | GET | `/forecast` |
+| `forecastApi.getModel` | GET | `/forecast/model` |
 
 ## Using services in a screen
 
@@ -68,6 +70,35 @@ For a rectangular area, use `bboxSelector([west, south, east, north])`. For poly
 
 Replace the state with the received `snapshot`. For pulses, use `applyPulse(previous, pulse)`: it updates records by `fire_id`, adds new events, and removes the identifiers in `removed`. The contract defines no stream filters; filter locally or query `/fires/live` for filtered searches. Close the connection when leaving the screen to avoid accumulating subscribers.
 
-## Current limitations
+## Which page reads what
 
-The Burning Calendar page (`features/history/components/HistoryWorkspace.tsx`) reads `/history/meta`, `/calendar`, `/climatology`, `/anomaly`, `/season` and `/trend` from the API; the other screens still use demonstration fixtures. The API must allow the front origin in `CORS_ORIGINS` (`http://localhost:8443` in development). Automated service tests use simulated transport; end-to-end validation requires a running backend.
+The area (biome or lon/lat box) and the period are shared by Overview, Fire Map, Historical Analysis and Burning Calendar. `/history/meta` is read once by `App` and passed down; the default period is the last 30 days of the record.
+
+| Page | Routes |
+| --- | --- |
+| Overview | `/history/calendar` (KPIs, chart), `/history/anomaly` (period vs normal), `/history/map` + `/fires/live` (map), `/forecast` (summary card), `/fires/live` (table) |
+| Fire Map | `/history/map`, `/fires/live` |
+| Burning Calendar | `/history/calendar` (day and week), `/history/climatology`, `/history/anomaly`, `/history/season`, `/history/trend` |
+| Historical Analysis | `/history/calendar` (KPIs, VIIRS yearly totals), `/history/trend` (harmonized and MODIS), `/history/meta` (method) |
+| Anomaly Alerts | `/history/calendar` (month) and `/history/climatology` (month) for every biome |
+| Risk Forecast | `/forecast`, `/forecast/model` |
+| Alert Center | none: the backend has no alert routes, and the page says so |
+| Data Sources | `/status`, `/history/meta` |
+| Sidebar | `/status` |
+
+## What the backend does not provide yet
+
+Each item below is visible in the front as a missing feature or a slow page, never as made-up data.
+
+1. **Forecast without `FIRMS_MAP_KEY`**: `/forecast` answers 503 and FIRMS NRT live fires are off until the key is set on the server. Only GOES ABI feeds the live layer then.
+2. **No national area**: Brazil as a box has 160,000 cells, above `max_area_cells` (50,000), so there is no "all of Brazil" view. A `country=BR` area (or a raised limit with precomputed national series) is needed.
+3. **No named administrative areas**: only biomes, boxes and drawn polygons. States, municipalities, conservation units and indigenous lands would need a catalogue (for example IBGE boundaries) with ids usable as `area_id`.
+4. **No alert routes**: nothing issues, stores or delivers alerts, or tracks read state. Alert Center and the notification bell stay empty.
+5. **No server-side anomaly scan**: Anomaly Alerts sends 12 requests (calendar and climatology for 6 biomes) and takes about 20 s. A route such as `/history/anomalies?year=&granularity=month` over all biomes (or areas) would do it in one call.
+6. **Slow analytics**: climatology, anomaly, season and trend take about 2 s each, recomputed per request. Caching or precomputed normals per biome would make Overview and Burning Calendar load in about a second.
+7. **No interval on period totals**: `/history/anomaly` always returns `value_interval: null`, and calendar intervals cannot be added across buckets. Totals that include VIIRS-estimate days need an interval computed on the server.
+8. **Map size limit**: `/history/map` answers 413 above 20,000 cells (for example Amazon over a full year: 25,473). A coarser aggregation level or tiles are needed for large areas and long periods.
+9. **Live fires not filtered by area**: `/fires/live` and `/detections/recent` accept only `bbox`, not `biome` or `area_id`, so the live table shows every fire in the worker's window.
+10. **Forecast not summarised by area**: `/forecast` lists cells only. A per-biome or per-area daily summary (for example expected fire cells) is needed for a regional view, instead of the front guessing which cells fall in a biome.
+
+Automated service tests use simulated transport; end-to-end validation requires a running backend.

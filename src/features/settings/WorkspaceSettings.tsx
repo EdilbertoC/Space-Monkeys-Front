@@ -17,7 +17,7 @@ export default function WorkspaceSettings({
     <section className="panel settings-panel">
       <PanelTitle
         title="Workspace preferences"
-        subtitle="Configure your demo workspace for this session."
+        subtitle="Configure the workspace for this session."
       />
       <div className="setting-row">
         <div>

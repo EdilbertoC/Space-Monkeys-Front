@@ -31,9 +31,9 @@ export default function AboutDialog({ onClose }: { onClose: () => void }) {
         <div className="modal-callout">
           <Icon name="info" />
           <p>
-            This is an illustrative demo. All detection counts, trends, alerts, and hotspot
-            locations are synthetic. OrbitBurn is not connected to live NASA data and must not be
-            used for emergency decisions.
+            Data comes from the Space Monkeys API: NASA FIRMS MODIS and VIIRS for the historical
+            record and the forecast, GOES ABI for live fires. Coverage is Brazil. It is a research
+            prototype and must not be used for emergency decisions.
           </p>
         </div>
         <h3>Complementary sensors</h3>
