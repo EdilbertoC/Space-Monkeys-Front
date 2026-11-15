@@ -6,9 +6,8 @@
 // whose edges can be dragged. It shows association, never cause.
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
 import { historyApi, http } from "../../../app/api";
-import { parseArea, readParam, writeParams } from "../../../app/url-state";
+import { readParam, writeParams } from "../../../app/url-state";
 import { useApi } from "../../../shared/api/useApi";
-import SelectControl from "../../../shared/ui/SelectControl";
 import { Icon } from "../../../shared/ui/ui";
 import { areaKey, areaLabel, areaSelector, type AreaChoice } from "../../history/model/area";
 import { formatValue, type Meta } from "../../history/model/history-view";
@@ -26,8 +25,10 @@ import {
   comparePeriods,
   defaultPeriods,
   driftYear,
+  evidenceOf,
+  minAttainableP,
+  perDecadePct,
   inRange,
-  indexSeries,
   intervalRuns,
   isAllYear,
   median,
@@ -41,6 +42,7 @@ import {
   toCsv,
   windowTotals,
   type Comparison,
+  type Evidence,
   type MonthBucket,
   type MonthRange,
   type YearPoint,
@@ -53,17 +55,11 @@ import TerritoryMap from "./TerritoryMap";
 import "../styles/territory.css";
 
 const NONE = "__none";
-const BRAZIL = "__brazil";
+/** Every area is set against Brazil as a whole, so a local change can be told from a national one. */
+const BRAZIL_AREA: AreaChoice = { kind: "country", country: "BR" };
 
 type Periods = { a: YearRange; b: YearRange };
 type Edge = { period: "a" | "b"; side: "from" | "to" };
-
-function referenceArea(key: string): AreaChoice | null {
-  if (key === NONE) return null;
-  if (key === BRAZIL) return { kind: "country", country: "BR" };
-  const parsed = parseArea(key);
-  return parsed?.kind === "biome" ? parsed : null;
-}
 
 function points(trend: TrendResource): YearPoint[] {
   return (
@@ -125,19 +121,13 @@ export default function TerritoryPage({
   const [pickedA, setPickedA] = useState<YearRange | null>(() => parseRange(readParam("a")));
   const [pickedB, setPickedB] = useState<YearRange | null>(() => parseRange(readParam("b")));
   const [months, setMonths] = useState<MonthRange>(() => parseMonths(readParam("months")));
-  const [referenceKey, setReferenceKey] = useState(() => {
-    const key = readParam("ref");
-    // No reference by default, so the chart opens in fire cell-days with the trend line.
-    return key !== null && (key === NONE || referenceArea(key)) ? key : NONE;
-  });
   const [copied, setCopied] = useState(false);
   const [drawing, setDrawing] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
 
   const key = areaKey(area);
-  const reference = referenceArea(referenceKey);
-  // A territory is never its own reference.
-  const refArea = reference && areaKey(reference) !== key ? reference : null;
+  // Brazil is the automatic yardstick; Brazil itself has none.
+  const refArea = area.kind === "country" ? null : BRAZIL_AREA;
 
   const territory = useApi(
     (signal) => historyApi.getTrend({ ...areaSelector(area), series: "harmonized" }, { signal }),
@@ -200,7 +190,7 @@ export default function TerritoryPage({
 
   useEffect(() => {
     writeParams({
-      ref: referenceKey === NONE ? null : referenceKey,
+      ref: null,
       a: pickedA ? `${pickedA.from}-${pickedA.to}` : null,
       b: pickedB ? `${pickedB.from}-${pickedB.to}` : null,
       months: windowed ? `${months.from}-${months.to}` : null,
@@ -208,26 +198,14 @@ export default function TerritoryPage({
       label: null,
     });
     return () => writeParams({ ref: null, a: null, b: null, months: null });
-  }, [referenceKey, pickedA, pickedB, months, windowed]);
-
-  // With a reference both series share one axis: 100 is the median year of period A (or the
-  // median year overall when there are no periods).
-  const wantsIndex = refArea !== null && ref.length > 0;
-  const baseYears = periodA ? (y: number) => y >= periodA.from && y <= periodA.to : undefined;
-  const indexedOwn = wantsIndex ? indexSeries(own, baseYears) : [];
-  const indexedRef = wantsIndex ? indexSeries(ref, baseYears) : [];
-  // Indexing divides by a median, so it needs fire in the base years of both series.
-  const indexed = indexedOwn.length > 0 && indexedRef.length > 0;
-  const cannotIndex = wantsIndex && !indexed;
-  const shownOwn = indexed ? indexedOwn : own;
-  const shownRef = indexed ? indexedRef : [];
+  }, [pickedA, pickedB, months, windowed]);
 
   const ownCmp = periods ? comparePeriods(own, periods.a, periods.b) : null;
-  const refCmp = periods && indexed ? comparePeriods(ref, periods.a, periods.b) : null;
+  // Brazil over the same periods and months: one line in the card, not a second chart axis.
+  const refCmp = periods && ref.length > 0 ? comparePeriods(ref, periods.a, periods.b) : null;
 
   const t = territory.data?.data;
   const localTrend = theilSen(own);
-  const trendLine = indexed ? null : localTrend;
 
   // Dragging an edge on the chart moves one end of one period, keeping from ≤ to.
   const moveEdge = ({ period, side }: Edge, year: number) => {
@@ -254,7 +232,7 @@ export default function TerritoryPage({
         reference: refByYear.get(p.year),
       })),
       slug(areaLabel(area)) + suffix,
-      indexed && refArea ? slug(areaLabel(refArea)) + suffix : null,
+      refArea && ref.length > 0 ? slug(areaLabel(refArea)) + suffix : null,
     );
     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
     const link = document.createElement("a");
@@ -300,23 +278,6 @@ export default function TerritoryPage({
         >
           <DrawIcon /> {drawing ? "Cancel drawing" : "Draw on map"}
         </button>
-        <div className="hw-field">
-          <span>Compare with</span>
-          <SelectControl
-            label="Reference area"
-            icon="globe"
-            value={refArea ? referenceKey : NONE}
-            onChange={setReferenceKey}
-          >
-            <option value={NONE}>No reference</option>
-            <option value={BRAZIL}>Brazil (all biomes)</option>
-            {meta.biomes.map((b) => (
-              <option key={b.name} value={b.name}>
-                {`${b.name} biome`}
-              </option>
-            ))}
-          </SelectControl>
-        </div>
         <SeasonPicker value={months} onChange={setMonths} firstYear={first} lastYear={last} />
         <div className="tr-toolbar-end">
           <button className="tr-tool quiet" onClick={exportCsv} disabled={own.length === 0}>
@@ -338,6 +299,7 @@ export default function TerritoryPage({
           slope={windowed ? (localTrend?.slope ?? null) : (t?.slope_per_year ?? null)}
           significant={windowed ? null : (t?.significant ?? false)}
           periods={periods}
+          points={own}
           own={ownCmp}
           reference={refCmp}
           refPlace={refArea && placeName(refArea)}
@@ -358,11 +320,9 @@ export default function TerritoryPage({
       <section className="panel tr-chart-panel">
         <div className="tr-chart-head">
           <h2>
-            {indexed
-              ? `Index, 100 = typical year of period A`
-              : windowed
-                ? `Fire cell-days in ${monthsLabel(months)} of each year`
-                : "Fire cell-days per year"}
+            {windowed
+              ? `Fire cell-days in ${monthsLabel(months)} of each year`
+              : "Fire cell-days per year"}
           </h2>
           <div className="tr-periods">
             <span className="tr-periods-label">Years</span>
@@ -384,14 +344,14 @@ export default function TerritoryPage({
         )}
         {!loading && own.length > 0 ? (
           <TerritoryChart
-            animKey={`${key}|${windowed ? monthsLabel(months) : "all"}|${indexed}`}
-            own={shownOwn}
-            ref={shownRef}
-            indexed={indexed}
+            animKey={`${key}|${windowed ? monthsLabel(months) : "all"}`}
+            own={own}
+            ref={[]}
+            indexed={false}
             name={placeName(area)}
-            refName={refArea ? areaLabel(refArea) : null}
+            refName={null}
             periods={periods}
-            line={trendLine}
+            line={localTrend}
             drift={drift}
             onEdge={moveEdge}
           />
@@ -406,17 +366,6 @@ export default function TerritoryPage({
           <p className="hw-note warn hw-pad">
             <Icon name="info" size={13} /> Harmonized series unavailable here: showing observed
             MODIS.
-          </p>
-        )}
-        {cannotIndex && (
-          <p className="hw-note warn hw-pad">
-            <Icon name="info" size={13} /> No fire in the typical year of A, so the reference cannot
-            share the axis. Showing this area alone.
-          </p>
-        )}
-        {refArea && (refTrend.status === "error" || refCal.cal.status === "error") && (
-          <p className="hw-note warn hw-pad">
-            <Icon name="info" size={13} /> The reference could not be loaded.
           </p>
         )}
       </section>
@@ -517,6 +466,10 @@ function PeriodField({
   );
 }
 
+/** 132,805 → "133K", so two values fit one line. */
+const compact = (v: number) =>
+  v.toLocaleString("en-US", { notation: "compact", maximumFractionDigits: v < 1000 ? 1 : 0 });
+
 /** 0 − 0 style results can come back as -0, which would print as "-0". */
 function noNegativeZero(value: number | undefined): number | null {
   return value === undefined ? null : value + 0;
@@ -531,12 +484,23 @@ function placeName(area: AreaChoice): string {
 
 type Direction = "falling" | "rising" | "flat";
 
-function evidenceOf(p: number | null): string {
-  if (p === null) return "—";
-  return p < 0.01 ? "Strong" : p < 0.05 ? "Moderate" : "Weak";
-}
+/** Fewest years per period (equal sizes) with which the rank test can reach p < 0.05. */
+const MIN_TESTABLE_YEARS = (() => {
+  let k = MIN_SEGMENT_YEARS;
+  while (minAttainableP(k, k) > 0.05) k++;
+  return k;
+})();
 
-/** The answer first: one word, one sentence, three numbers. */
+const PILL: Record<Evidence, string> = {
+  confirmed: "Confirmed",
+  unconfirmed: "Not confirmed",
+  untestable: "Too few years to test",
+};
+
+/**
+ * The answer first: how big the change is, then what the data can claim about it, the years
+ * behind it as dots, and the long-term trend in % per decade.
+ */
 function Verdict({
   place,
   window,
@@ -546,6 +510,7 @@ function Verdict({
   slope,
   significant,
   periods,
+  points,
   own,
   reference,
   refPlace,
@@ -561,6 +526,8 @@ function Verdict({
   /** null when no test is run (a month window). */
   significant: boolean | null;
   periods: Periods | null;
+  /** The yearly series the comparison is made on. */
+  points: YearPoint[];
   own: Comparison | null;
   reference: Comparison | null;
   refPlace: string | null;
@@ -601,36 +568,72 @@ function Verdict({
   // With a month window the comparison is between seasons, so the sentence names it.
   const typical = window ? `typical ${window}` : "typical year";
 
-  const pct = own?.enough ? own.changePct : null;
-  const p = own?.enough ? own.p : null;
-  const compared = periods !== null && pct !== null && pct !== undefined;
-  // The word follows the period comparison when there is one, else the long-term trend.
-  let direction: Direction;
-  if (compared) direction = p !== null && p < 0.05 ? (pct! < 0 ? "falling" : "rising") : "flat";
-  else if (slope !== null && significant) direction = slope < 0 ? "falling" : "rising";
-  else direction = "flat";
-  const word =
-    direction === "falling" ? "Falling" : direction === "rising" ? "Rising" : "No clear change";
+  const cmp = periods && own?.enough && own.changePct !== null ? own : null;
+  const pct = cmp?.changePct ?? null;
+  const evidence = cmp ? evidenceOf(cmp) : null;
+  const about = pct !== null && Math.abs(pct) < 5;
+  // The headline is the size of the change; whether it is confirmed is said next to it.
+  const direction: Direction =
+    pct !== null
+      ? about
+        ? "flat"
+        : pct < 0
+          ? "falling"
+          : "rising"
+      : slope !== null && significant
+        ? slope < 0
+          ? "falling"
+          : "rising"
+        : "flat";
+  const confirmed = cmp ? evidence === "confirmed" : significant === true;
+  const headline =
+    pct !== null
+      ? about
+        ? "About the same"
+        : `${Math.abs(pct).toFixed(0)}% ${pct < 0 ? "lower" : "higher"}`
+      : direction === "falling"
+        ? "Falling"
+        : direction === "rising"
+          ? "Rising"
+          : "No clear trend";
 
   let sentence: string;
-  if (compared) {
-    const a = rangeLabel(periods!.a);
-    const b = rangeLabel(periods!.b);
+  if (cmp && periods && pct !== null) {
+    const a = rangeLabel(periods.a);
+    const b = rangeLabel(periods.b);
+    const what = about
+      ? `The ${typical} in ${b} and in ${a} differ by only ${Math.abs(pct).toFixed(0)}%`
+      : `The ${typical} in ${b} had ${Math.abs(pct).toFixed(0)}% ${pct < 0 ? "fewer" : "more"} fire cell-days than in ${a}`;
     sentence =
-      direction === "flat"
-        ? `${b} and ${a} differ by ${Math.abs(pct!).toFixed(0)}% in the ${typical}, within normal year-to-year swings.`
-        : `The ${typical} in ${b} had ${Math.abs(pct!).toFixed(0)}% ${pct! < 0 ? "fewer" : "more"} fire cell-days than in ${a}. That is more than normal year-to-year swings.`;
+      evidence === "untestable"
+        ? `${what}. With ${cmp.a.n} and ${cmp.b.n} years no test can confirm a change: give each period at least ${MIN_TESTABLE_YEARS} years.`
+        : evidence === "confirmed"
+          ? `${what}, more than year-to-year swings explain.`
+          : about
+            ? `${what}.`
+            : `${what}, but the years of A and B overlap, so normal year-to-year swings could explain it.`;
   } else if (own?.enough && own.changePct === null) {
     sentence = "Period A has no fire in its typical year, so a change in % cannot be computed.";
   } else {
-    sentence = `Pick two periods of at least ${MIN_SEGMENT_YEARS} complete years each, without shared years, to compare them.`;
+    sentence = `Pick two periods of at least ${MIN_TESTABLE_YEARS} complete years each, without shared years, to compare them.`;
   }
 
+  const decade =
+    slope !== null
+      ? perDecadePct(
+          slope,
+          points.map((x) => x.value),
+        )
+      : null;
+  const minP = cmp ? minAttainableP(cmp.a.n, cmp.b.n) : null;
   const lastYear = own?.enough ? Math.max(own.a.lastYear ?? 0, own.b.lastYear ?? 0) : 0;
   return (
-    <section className={`panel tr-verdict ${direction}`} aria-live="polite">
+    <section
+      className={`panel tr-verdict ${direction} ${confirmed ? "confirmed" : "tentative"}`}
+      aria-live="polite"
+    >
       <span className="tr-context">{context}</span>
-      <div className="tr-word tr-pop" key={direction}>
+      <div className="tr-word tr-pop" key={`${direction}${headline}`}>
         <span className="tr-badge" aria-hidden="true">
           <svg width="30" height="30" viewBox="0 0 24 24" className="tr-svg-icon thick">
             {direction === "falling" && <path d="M12 4v16M5 13l7 7 7-7" />}
@@ -638,44 +641,64 @@ function Verdict({
             {direction === "flat" && <path d="M4 12h16" />}
           </svg>
         </span>
-        <h2>{word}</h2>
+        <div className="tr-headline">
+          <h2>{headline}</h2>
+          {evidence && <span className={`tr-pill ${evidence}`}>{PILL[evidence]}</span>}
+        </div>
       </div>
       <p className="tr-sentence tr-fade-in" key={sentence}>
         {sentence}
       </p>
 
+      {cmp && periods && <YearDots points={points} periods={periods} cmp={cmp} />}
+
       <dl className="tr-stats">
         <div>
-          <dt>B vs A</dt>
-          <dd className="tr-fade-in" key={compared ? pct : "none"}>
-            {compared ? `${signed(pct!)}%` : "—"}
+          <dt>{window ? `Typical ${window}` : "Typical year"}</dt>
+          <dd className="tr-fade-in" key={cmp ? `${cmp.a.median}${cmp.b.median}` : "none"}>
+            {cmp ? `${compact(cmp.a.median)} → ${compact(cmp.b.median)}` : "—"}
           </dd>
-          <small>{typical}</small>
+          <small>fire cell-days, A → B</small>
         </div>
         <div>
           <dt>Trend since {firstYear}</dt>
-          <dd>
-            {slope === null
-              ? "—"
-              : signed(noNegativeZero(slope) ?? 0, Math.abs(slope) < 10 ? 1 : 0)}
-          </dd>
+          <dd>{decade === null ? "—" : `${signed(noNegativeZero(decade) ?? 0)}%`}</dd>
           <small>
-            per year
-            {significant === null ? ", not tested" : significant ? "" : ", not significant"}
+            per decade
+            {significant === null
+              ? ", not tested"
+              : significant
+                ? ", significant"
+                : ", not significant"}
           </small>
         </div>
         <div>
-          <dt>Evidence</dt>
-          <dd className="tr-fade-in" key={p ?? "none"}>
-            {evidenceOf(p ?? null)}
+          <dt>Test</dt>
+          <dd className="tr-fade-in" key={`${evidence}${cmp?.p}`}>
+            {/* An untestable p is only an approximation that can dip below the real floor. */}
+            {evidence === "untestable"
+              ? "No test"
+              : cmp?.p === null || cmp?.p === undefined
+                ? "—"
+                : `p = ${cmp.p.toFixed(2)}`}
           </dd>
-          <small>{p === null || p === undefined ? "no test" : `p = ${p.toFixed(3)}`}</small>
+          <small>
+            {evidence === "untestable" && minP !== null && cmp
+              ? `${cmp.a.n} v ${cmp.b.n} years: p cannot go below ${minP.toFixed(2)}`
+              : evidence === "confirmed"
+                ? "below 0.05"
+                : evidence === "unconfirmed"
+                  ? "above 0.05"
+                  : "no test"}
+          </small>
         </div>
       </dl>
 
       {reference?.changePct !== null && reference?.changePct !== undefined && refPlace && (
-        <p className="tr-aside">
-          {refPlace}: {signed(reference.changePct)}% between the same periods.
+        <p className="tr-aside tr-yardstick">
+          For scale, {refPlace} as a whole: <strong>{signed(reference.changePct)}%</strong> over the
+          same years
+          {window ? ` (${window} only)` : ""}.
         </p>
       )}
       {drift !== null && lastYear >= drift && (
@@ -688,6 +711,79 @@ function Verdict({
         </button>
       </p>
     </section>
+  );
+}
+
+/**
+ * Each year of A and of B as a dot on one value axis, with the typical (median) year as a
+ * tick. Rows that overlap mean the difference could be ordinary year-to-year swings.
+ */
+function YearDots({
+  points,
+  periods,
+  cmp,
+}: {
+  points: YearPoint[];
+  periods: Periods;
+  cmp: Comparison;
+}) {
+  const rows = (["a", "b"] as const).map((k) => ({
+    k,
+    pts: inRange(points, periods[k]),
+    median: k === "a" ? cmp.a.median : cmp.b.median,
+  }));
+  const max = Math.max(1, ...rows.flatMap((r) => r.pts.map((p) => p.value)));
+  const L = 74;
+  const R = 12;
+  const VW = 400;
+  const x = (v: number) => L + (v / max) * (VW - L - R);
+  return (
+    <figure className="tr-dots">
+      <svg
+        viewBox={`0 0 ${VW} 78`}
+        role="img"
+        aria-label={`Yearly fire cell-days of period A and period B, one dot per year`}
+      >
+        <line className="tr-dots-axis" x1={L} x2={VW - R} y1={66} y2={66} />
+        <text className="tr-dots-tick" x={L} y={76} textAnchor="start">
+          0
+        </text>
+        <text className="tr-dots-tick" x={VW - R} y={76} textAnchor="end">
+          {formatValue(max)}
+        </text>
+        {rows.map((r, i) => {
+          const y = 16 + i * 26;
+          return (
+            <g key={r.k} className={`tr-dots-row ${r.k}`}>
+              <text className="tr-dots-label" x={0} y={y + 4}>
+                {`${r.k.toUpperCase()} ${rangeLabel(periods[r.k])}`}
+              </text>
+              <line className="tr-dots-guide" x1={L} x2={VW - R} y1={y} y2={y} />
+              <line
+                className="tr-dots-median"
+                x1={x(r.median)}
+                x2={x(r.median)}
+                y1={y - 9}
+                y2={y + 9}
+              />
+              {r.pts.map((p, j) => (
+                <circle
+                  key={p.year}
+                  className="tr-dots-dot tr-dot-in"
+                  style={{ animationDelay: `${j * 40}ms` }}
+                  cx={x(p.value)}
+                  cy={y}
+                  r={5}
+                >
+                  <title>{`${p.year}: ${formatValue(p.value)} fire cell-days`}</title>
+                </circle>
+              ))}
+            </g>
+          );
+        })}
+      </svg>
+      <figcaption>Each dot is one year; the tick is the typical year.</figcaption>
+    </figure>
   );
 }
 

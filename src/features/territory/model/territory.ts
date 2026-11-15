@@ -345,3 +345,30 @@ export function toCsv(rows: readonly ExportRow[], territory: string, reference: 
   );
   return [head.map(csvCell).join(","), ...lines].join("\n") + "\n";
 }
+
+/**
+ * Smallest two-sided p a rank test can give with n1 and n2 years: every year of one period
+ * below every year of the other, 2 / C(n1 + n2, n1). With 3 years against 3 it is 0.10, so
+ * no difference, however large, can be confirmed at 0.05.
+ */
+export function minAttainableP(n1: number, n2: number): number {
+  if (n1 < 1 || n2 < 1) return 1;
+  let c = 1;
+  for (let k = 1; k <= n1; k++) c = (c * (n2 + k)) / k;
+  return Math.min(1, 2 / c);
+}
+
+export type Evidence = "confirmed" | "unconfirmed" | "untestable";
+
+/** What the comparison can claim at the 0.05 level, given how many years each period has. */
+export function evidenceOf(c: Comparison): Evidence | null {
+  if (!c.enough || c.p === null) return null;
+  if (minAttainableP(c.a.n, c.b.n) > 0.05) return "untestable";
+  return c.p < 0.05 ? "confirmed" : "unconfirmed";
+}
+
+/** A Theil–Sen slope as % of the typical (median) year per decade; null with no fire. */
+export function perDecadePct(slope: number, values: readonly number[]): number | null {
+  const m = median(values);
+  return m > 0 ? ((slope * 10) / m) * 100 : null;
+}

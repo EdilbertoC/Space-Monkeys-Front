@@ -168,12 +168,18 @@
 .territory .tr-stats dd {
   margin: 0;
   font-family: var(--font-data);
-  font-size: 21px;
+  font-size: clamp(16px, 1.35vw, 20px);
+  white-space: nowrap;
   color: var(--text-primary);
 }
 .territory .tr-stats small {
   font-size: 12px;
   color: var(--text-subtle);
+}
+.territory .tr-yardstick strong {
+  font-family: var(--font-data);
+  font-weight: 500;
+  color: var(--text-primary);
 }
 .territory .tr-aside {
   margin: 0;
@@ -587,6 +593,114 @@
   font-size: 14px;
   line-height: 1.5;
   color: var(--text-secondary);
+}
+
+/* verdict: the size of the change, then what the data can claim about it */
+.territory .tr-headline {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+}
+/* An unconfirmed change keeps its arrow but not the colour of a finding. */
+.territory .tr-verdict.tentative .tr-word {
+  color: var(--text-primary);
+}
+.territory .tr-verdict.tentative .tr-badge {
+  border-style: dashed;
+}
+.territory .tr-pill {
+  display: inline-block;
+  padding: 3px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0;
+  color: var(--text-secondary);
+}
+.territory .tr-pill.confirmed {
+  border-color: currentColor;
+  color: inherit;
+}
+.territory .tr-pill.untestable {
+  border-color: var(--sensor-modis);
+  color: var(--sensor-modis);
+}
+.territory .tr-dots {
+  margin: 0;
+}
+.territory .tr-dots svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+.territory .tr-dots figcaption {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--text-subtle);
+}
+.territory .tr-dots-label {
+  font: 600 10.5px var(--font-data);
+  fill: var(--text-secondary);
+}
+.territory .tr-dots-guide {
+  stroke: var(--border);
+  stroke-width: 1;
+}
+.territory .tr-dots-axis {
+  stroke: var(--border);
+}
+.territory .tr-dots-tick {
+  font: 9.5px var(--font-data);
+  fill: var(--text-subtle);
+}
+.territory .tr-dots-row.a .tr-dots-dot {
+  fill: var(--period-a);
+}
+.territory .tr-dots-row.b .tr-dots-dot {
+  fill: var(--period-b);
+}
+.territory .tr-dots-dot {
+  stroke: var(--panel);
+  stroke-width: 1.5;
+  fill-opacity: 0.9;
+}
+.territory .tr-dots-median {
+  stroke: var(--text-primary);
+  stroke-width: 2;
+}
+
+/* map: one sentence that says what the colours add up to */
+.territory .tr-map-summary {
+  margin: 0 var(--space-lg) var(--space-sm);
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+.territory .tr-map-summary strong {
+  font-weight: 600;
+}
+.territory .tr-map-summary .fell {
+  color: var(--chg-n2);
+}
+.territory .tr-map-summary .rose {
+  color: var(--chg-p2);
+}
+.territory .tr-scale em {
+  font-style: normal;
+  font-family: var(--font-data);
+  font-size: 10.5px;
+  color: var(--text-subtle);
+}
+/* "Similar" stays faint so the cells that changed carry the map. */
+.territory .tr-chg.z {
+  fill-opacity: 0.32;
+}
+.territory .tr-chg-key.z {
+  opacity: 0.45;
 }
 
 /* season picker: months counted inside every year */

@@ -282,6 +282,12 @@ export default function TerritoryMap({
           ))}
         </div>
       </div>
+      {mode === "change" && change && !drawing && (
+        <p className="tr-map-summary tr-fade-in" key={change.key}>
+          Fire <strong className="fell">fell in {change.fell}%</strong> of the cells that burned and{" "}
+          <strong className="rose">rose in {change.rose}%</strong>; the rest changed little.
+        </p>
+      )}
       {drawing && (
         <p className="tr-draw-hint" role="status">
           Drag a box on the map. It snaps to the 0.1° grid. Esc cancels.
@@ -322,7 +328,7 @@ export default function TerritoryMap({
             legend={
               mode === "change" ? (
                 <ChangeLegend
-                  scale={change?.strong ?? null}
+                  bands={change ? { similar: change.similar, strong: change.strong } : null}
                   grid={grid}
                   loading={loadingOwn}
                   context={context.status === "success"}
@@ -417,7 +423,16 @@ function changeCells(mapA: PeriodCells, mapB: PeriodCells) {
             ? "p2"
             : "p1",
   }));
-  return { cells, strong, key: `${mapA.key}/${mapB.key}` };
+  const share = (pred: (c: ChangeCell) => boolean) =>
+    cells.length ? Math.round((cells.filter(pred).length / cells.length) * 100) : 0;
+  return {
+    cells,
+    similar,
+    strong,
+    fell: share((c) => c.cls === "n1" || c.cls === "n2"),
+    rose: share((c) => c.cls === "p1" || c.cls === "p2"),
+    key: `${mapA.key}/${mapB.key}`,
+  };
 }
 
 /** Length of an answer's period in years (dates are inclusive). */
@@ -451,39 +466,43 @@ function ChangeCellsLayer({ cells, gridDegrees }: { cells: ChangeCell[]; gridDeg
 }
 
 function ChangeLegend({
-  scale,
+  bands,
   grid,
   loading,
   context,
   season,
 }: {
-  scale: number | null;
+  /** Class limits in fire cell-days per year, so each swatch can show its range. */
+  bands: { similar: number; strong: number } | null;
   grid: number | null;
   loading: boolean;
   context: boolean;
   season: string | null;
 }) {
+  const s = bands ? per(bands.similar) : null;
+  const S = bands ? per(bands.strong) : null;
   const steps = [
-    ["n2", "Much less"],
-    ["n1", "Less"],
-    ["z", "Similar"],
-    ["p1", "More"],
-    ["p2", "Much more"],
+    ["n2", "Much less", S && `below −${S}`],
+    ["n1", "Less", s && `−${S} to −${s}`],
+    ["z", "Similar", s && `within ±${s}`],
+    ["p1", "More", s && `+${s} to +${S}`],
+    ["p2", "Much more", S && `above +${S}`],
   ] as const;
   return (
     <div className="tr-map-legend">
       <div className="tr-scale">
-        {steps.map(([cls, label]) => (
+        {steps.map(([cls, label, range]) => (
           <span key={cls}>
             <i className={`tr-chg-key ${cls}`} />
             {label}
+            {range && <em>{range}</em>}
           </span>
         ))}
       </div>
       <span className="tr-legend-note">
         {loading
           ? "Loading cells…"
-          : `Fire cell-days ${season ? `in ${season} of each year` : "per year"} in each ${grid ?? 0.1}° cell, B against A${scale ? `. "Much" is beyond ±${per(scale)}` : ""}.`}
+          : `Change in fire cell-days ${season ? `in ${season} of each year` : "per year"}, per ${grid ?? 0.1}° cell, B minus A.`}
       </span>
       {context && (
         <span className="tr-context-key">

@@ -5,13 +5,16 @@ import {
   comparePeriods,
   defaultPeriods,
   driftYear,
+  evidenceOf,
   indexSeries,
   intervalRuns,
   mannWhitneyP,
   median,
+  minAttainableP,
   monthsLabel,
   monthWindowSpans,
   parseRange,
+  perDecadePct,
   theilSen,
   toCsv,
   windowMonths,
@@ -162,4 +165,30 @@ test("monthWindowSpans: the month window inside every year, never one long span"
   assert.deepEqual(monthWindowSpans({ from: 2026, to: 2027 }, { from: 7, to: 12 }, "2026-11-15"), [
     { start: "2026-07-01", end: "2026-11-15" },
   ]);
+});
+
+test("minAttainableP: 3 years against 3 can never reach 0.05", () => {
+  assert.equal(minAttainableP(3, 3), 0.1);
+  assert.ok(minAttainableP(3, 4) > 0.05);
+  assert.ok(minAttainableP(4, 4) < 0.05);
+  assert.ok(minAttainableP(3, 5) < 0.05);
+});
+
+test("evidenceOf: a big drop with 3 years each is untestable, not 'no change'", () => {
+  // Every B year below every A year: the strongest ordering 3 v 3 allows.
+  const series = pts([100, 110, 120, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 50, 55, 60]);
+  const short = comparePeriods(series, { from: 2003, to: 2005 }, { from: 2018, to: 2020 });
+  assert.equal(Math.round(short.changePct), -50);
+  assert.equal(evidenceOf(short), "untestable");
+  const long = comparePeriods(
+    pts([100, 110, 120, 105, 115, 50, 55, 60, 52, 58]),
+    { from: 2003, to: 2007 },
+    { from: 2008, to: 2012 },
+  );
+  assert.equal(evidenceOf(long), "confirmed");
+});
+
+test("perDecadePct: slope as % of the typical year per decade", () => {
+  assert.equal(perDecadePct(-10, [100, 100, 100]), -100);
+  assert.equal(perDecadePct(5, [0, 0]), null);
 });
