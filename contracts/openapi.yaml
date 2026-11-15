@@ -2,29 +2,55 @@
 openapi: 3.1.0
 info:
   title: Space Monkeys API
-  version: 0.2.0-draft
+  version: 0.7.0
   summary: Burning activity calendar from harmonized MODIS and VIIRS fire hotspots, plus a real-time fire pulse.
   description: |
     Contract between the Space Monkeys backend and frontend. It lists everything the
     backend offers. Routes tagged `history` are the burning activity calendar
-    (planned, step 10 of the plan). Routes tagged `live` and `system` exist today
-    and are frozen.
+    (served from the table built by `python -m pipeline.serving`; 503 when it is
+    missing). Routes tagged `live` and `system` are the frozen real-time side.
 
     ## Units and conventions
 
     - **Fire cell-day**: one 0.1° grid cell (about 11 km) on one UTC day with at least
-      one detection. History numbers are counts of fire cell-days inside the area,
-      never counts of hotspots and never burned area. Sensors are combined with OR on
-      the cell-day, never summed.
+      one detection. History numbers are fire cell-days inside the area, never
+      counts of hotspots, never fire intensity (FRP) and never burned area. Sensors
+      are combined with OR on the cell-day, never summed.
     - **Series**:
-      - `modis`: what MODIS (Terra or Aqua) saw. The long, consistent record
-        (2000-11-01 to the end of MODIS).
-      - `viirs`: what any VIIRS satellite saw (2012-01-20 on). Not comparable across
-        years: NOAA-20 (2018) and NOAA-21 (2023) add detections.
-      - `harmonized`: MODIS-equivalent fire cell-days. MODIS where it exists, and
-        VIIRS translated to MODIS units by the calibration model once MODIS ends.
-        This is the series the calendar should show. Every harmonized number
-        comes with an uncertainty interval.
+      - `modis`: **observed count** of cell-days where MODIS (Terra or Aqua) detected
+        fire. An integer. The long, consistent record (2000-11-01 to the end of MODIS).
+      - `viirs`: **observed count** of cell-days where any VIIRS satellite detected
+        fire (2012-01-20 on). An integer. Not comparable across years: NOAA-20 (2018)
+        and NOAA-21 (2023) add detections (about +50% and +80% fire cell-days over
+        S-NPP alone). The calendar and the map show it; the routes that compare
+        years (climatology, anomaly, season, trend) answer `series=viirs` with 422.
+      - `harmonized`: **MODIS-equivalent fire cell-days**, the series the calendar
+        should show. A number with a 90% interval (`value`, `low`, `high`). It comes
+        from one of two sources, reported per bucket in `harmonized_source`:
+        - `modis`: on days with MODIS data it is the MODIS observed count
+          (integer; `low` = `high` = `value`).
+        - `viirs_estimate`: on days without MODIS data (after MODIS ends, or
+          after `harmonization.switch_date` in `GET /history/meta`) it is an
+          **expected count**, not an observed one, so it is not an integer.
+          For every cell-day with VIIRS fire in its 3×3 neighbourhood that day or
+          the day before, a model gives p = P(MODIS would have detected fire in the
+          cell that day), from what VIIRS saw there (pixels, FRP, day/night,
+          neighbours, previous days, season, place). p is calibrated per biome.
+          The area's value is Σ p × g over its cell-days, where g (per biome and
+          calendar month, ≥ 1) adds back the MODIS fire-days that VIIRS never sees
+          nearby (small, short fires). The 90% interval comes from the model's
+          out-of-sample errors on monthly biome totals.
+        - `mixed`: the bucket spans both sources.
+    - **Two kinds of answers, never mixed**: `/history` is observational (what
+      happened, harmonized across sensors); `/forecast` is a model forecast for the
+      next 7 days (probability of at least one VIIRS fire detection per 0.25° cell,
+      a U-Net trained on the FIRMS VIIRS archive, no weather input). The API offers
+      no fire-risk index, hotspot counts or FRP.
+    - **Sensors**: the historical record uses MODIS (Terra, Aqua) and VIIRS (S-NPP,
+      NOAA-20, NOAA-21) from NASA FIRMS. The forecast model is trained on VIIRS
+      S-NPP and fed with VIIRS S-NPP NRT. GOES ABI is used only by the real-time
+      routes (`live`) and to anchor the forecast on fires burning now. Landsat and
+      Sentinel-3 SLSTR are not used.
     - **Dates** are ISO 8601 UTC days. Periods are inclusive of `start` and `end`.
     - **Weeks** are days 1–7, 8–14, ... of the year; the last week (index 51) runs
       to 31 December (8 or 9 days).
@@ -35,8 +61,22 @@ info:
 
     ## Harmonization status
 
-    Until the harmonized record is built (step 8), `harmonized` fields are `null`
-    and `GET /history/meta` reports `harmonization.status: pending`. Every
+    `GET /history/meta` reports `harmonization.status`. While it is `pending`,
+    `harmonized` fields are `null` and `series=harmonized` answers 409.
+
+    While MODIS still delivers data, the harmonized series equals MODIS. The VIIRS
+    estimate is computed for every day since 2012 anyway (each year predicted by a
+    model that never saw it), to show there is no step where the source changes.
+    The switch to the VIIRS estimate happens when MODIS ends, or earlier at
+    `harmonization.switch_date` if the team decides MODIS orbital drift has made it
+    unreliable (an open decision). The model learns only from MODIS up to 2021,
+    before the orbits of Terra and Aqua started to drift. VIIRS satellite used:
+    S-NPP until it ended (2026-11-02), then NOAA-20; NOAA-20 also on the days
+    S-NPP was not observing (listed in `known_gaps`); NOAA-21, bridged through
+    NOAA-20, on days neither of them was observing. The estimate runs to the
+    last VIIRS day (`estimate_until`) and needs no MODIS data: after VIIRS
+    standard processing it is computed from NRT detections and its periods are
+    `provisional`. Every
     example in this file is a real value computed from the NASA FIRMS archive for
     the Pantanal biome (IBGE 2019), not invented data.
 
@@ -57,9 +97,11 @@ servers:
     description: Local development
 tags:
   - name: history
-    description: Burning activity calendar, climatology, anomalies, season and trend (planned).
+    description: Burning activity calendar, climatology, anomalies, season and trend.
   - name: live
     description: Real-time fused fires and detections (exists, frozen).
+  - name: forecast
+    description: 7-day fire forecast per 0.25° cell (U-Net), anchored on live fires.
   - name: system
     description: Health and worker status (exists).
 
@@ -78,7 +120,7 @@ paths:
               schema: { $ref: "#/components/schemas/Meta" }
               examples:
                 current:
-                  summary: State of the record on 2026-11-14 (harmonization pending)
+                  summary: State of the record on 2026-11-14
                   value:
                     unit: fire_cell_days
                     grid_degrees: 0.1
@@ -100,9 +142,17 @@ paths:
                       - { name: Pampa, cells: 1825 }
                       - { name: Pantanal, cells: 1301 }
                     harmonization:
-                      status: pending
-                      model: null
-                      version: null
+                      status: available
+                      method: "MODIS observed while MODIS delivers data; afterwards MODIS-equivalent expected fire cell-days estimated from VIIRS (LightGBM cross-fitted by year blocks on the years of stable MODIS orbits, calibrated per biome, coverage gap added back)."
+                      switch_date: null
+                      viirs_satellites:
+                        - { name: SNPP, start: "2012-01-20", end: "2026-07-31" }
+                      estimate_until: "2026-07-31"
+                      model: lightgbm-crossfit-isotonic-per-biome
+                      version: "2026-11-14"
+                      test_metrics:
+                        Brazil: { monthly_wape: 0.0689, bias: -0.0002 }
+                        Pantanal: { monthly_wape: 0.1132, bias: 0.0002 }
                     known_gaps:
                       - { sensor: MODIS, period: "2001-06/2001-07", note: "Missing data, end of June to beginning of July 2001 (FIRMS download Readme)." }
                       - { sensor: MODIS, period: "2002", note: "Some data missing throughout the year (FIRMS download Readme)." }
@@ -112,6 +162,8 @@ paths:
                       max_area_cells: 50000
                       max_map_cells: 20000
                       max_day_buckets: 1000
+
+        "503": { $ref: "#/components/responses/HistoryUnavailable" }
 
   /history/areas:
     post:
@@ -135,6 +187,7 @@ paths:
               schema: { $ref: "#/components/schemas/Area" }
         "413": { $ref: "#/components/responses/AreaTooLarge" }
         "422": { $ref: "#/components/responses/Invalid" }
+        "503": { $ref: "#/components/responses/HistoryUnavailable" }
 
   /history/calendar:
     get:
@@ -145,6 +198,7 @@ paths:
         - $ref: "#/components/parameters/bbox"
         - $ref: "#/components/parameters/biome"
         - $ref: "#/components/parameters/area_id"
+        - $ref: "#/components/parameters/country"
         - $ref: "#/components/parameters/start"
         - $ref: "#/components/parameters/end"
         - name: granularity
@@ -158,30 +212,32 @@ paths:
               schema: { $ref: "#/components/schemas/Calendar" }
               examples:
                 pantanal_2020_peak:
-                  summary: Pantanal biome, Aug–Oct 2020, by month (harmonization pending)
+                  summary: Pantanal biome, Aug–Oct 2020, by month (harmonized = MODIS while MODIS has data)
                   value:
                     area: { kind: biome, biome: Pantanal, cells: 1301 }
                     unit: fire_cell_days
                     granularity: month
                     buckets:
-                      - { start: "2020-08-01", end: "2020-08-31", harmonized: null, modis: 2053, viirs: 3637, provisional: false }
-                      - { start: "2020-09-01", end: "2020-09-30", harmonized: null, modis: 2529, viirs: 4662, provisional: false }
-                      - { start: "2020-10-01", end: "2020-10-31", harmonized: null, modis: 1435, viirs: 3075, provisional: false }
+                      - { start: "2020-08-01", end: "2020-08-31", harmonized: { value: 2053.0, low: 2053.0, high: 2053.0 }, harmonized_source: modis, modis: 2053, viirs: 3637, provisional: false }
+                      - { start: "2020-09-01", end: "2020-09-30", harmonized: { value: 2529.0, low: 2529.0, high: 2529.0 }, harmonized_source: modis, modis: 2529, viirs: 4662, provisional: false }
+                      - { start: "2020-10-01", end: "2020-10-31", harmonized: { value: 1435.0, low: 1435.0, high: 1435.0 }, harmonized_source: modis, modis: 1435, viirs: 3075, provisional: false }
         "400": { $ref: "#/components/responses/BadArea" }
         "404": { $ref: "#/components/responses/UnknownArea" }
         "413": { $ref: "#/components/responses/AreaTooLarge" }
         "422": { $ref: "#/components/responses/Invalid" }
+        "503": { $ref: "#/components/responses/HistoryUnavailable" }
 
   /history/climatology:
     get:
       tags: [history]
       operationId: getClimatology
       summary: The normal year for an area (median and 10th–90th percentile band)
-      description: For each week (or month) of the year, the distribution of fire cell-days over the base years. This is the "normal" the calendar is compared to.
+      description: For each week (or month) of the year, the distribution of fire cell-days over the complete base years. This is the "normal" the calendar is compared to. Week labels use a non-leap year.
       parameters:
         - $ref: "#/components/parameters/bbox"
         - $ref: "#/components/parameters/biome"
         - $ref: "#/components/parameters/area_id"
+        - $ref: "#/components/parameters/country"
         - $ref: "#/components/parameters/series"
         - $ref: "#/components/parameters/base_start_year"
         - $ref: "#/components/parameters/base_end_year"
@@ -204,14 +260,15 @@ paths:
                     granularity: week
                     base_years: [2003, 2025]
                     buckets:
-                      - { index: 34, label: "Aug 26–Sep 1", median: 143.0, p10: 41.2, p90: 260.4, mean: 173.3 }
-                      - { index: 35, label: "Sep 2–8", median: 225.0, p10: 36.0, p90: 630.4, mean: 259.9 }
-                      - { index: 36, label: "Sep 9–15", median: 178.0, p10: 42.4, p90: 483.2, mean: 236.0 }
+                      - { index: 34, label: "Aug 27–Sep 2", median: 143.0, p10: 41.2, p90: 260.4, mean: 173.3 }
+                      - { index: 35, label: "Sep 3–9", median: 225.0, p10: 36.0, p90: 630.4, mean: 259.9 }
+                      - { index: 36, label: "Sep 10–16", median: 178.0, p10: 42.4, p90: 483.2, mean: 236.0 }
         "400": { $ref: "#/components/responses/BadArea" }
         "409": { $ref: "#/components/responses/HarmonizationPending" }
         "404": { $ref: "#/components/responses/UnknownArea" }
         "413": { $ref: "#/components/responses/AreaTooLarge" }
         "422": { $ref: "#/components/responses/Invalid" }
+        "503": { $ref: "#/components/responses/HistoryUnavailable" }
 
   /history/anomaly:
     get:
@@ -227,6 +284,7 @@ paths:
         - $ref: "#/components/parameters/bbox"
         - $ref: "#/components/parameters/biome"
         - $ref: "#/components/parameters/area_id"
+        - $ref: "#/components/parameters/country"
         - $ref: "#/components/parameters/start"
         - $ref: "#/components/parameters/end"
         - $ref: "#/components/parameters/series"
@@ -246,18 +304,52 @@ paths:
                     unit: fire_cell_days
                     series: modis
                     period: { start: "2020-09-02", end: "2020-09-08" }
-                    value: 661
-                    normal: { median: 217.5, p10: 33.5, p90: 504.5 }
-                    percentile: 90.9
-                    ratio_to_median: 3.04
+                    value: 661.0
+                    normal: { median: 200.5, p10: 33.3, p90: 472.4 }
+                    percentile: 95.5
+                    ratio_to_median: 3.3
                     class: above
                     base_years: [2003, 2025]
                     excluded_years: [2020]
+                    value_interval: null
         "400": { $ref: "#/components/responses/BadArea" }
         "409": { $ref: "#/components/responses/HarmonizationPending" }
         "404": { $ref: "#/components/responses/UnknownArea" }
         "413": { $ref: "#/components/responses/AreaTooLarge" }
         "422": { $ref: "#/components/responses/Invalid" }
+        "503": { $ref: "#/components/responses/HistoryUnavailable" }
+
+  /history/anomalies:
+    get:
+      tags: [history]
+      operationId: getAnomalyScan
+      summary: Every month of a year against normal, for every biome (and Brazil)
+      description: |
+        The anomaly of GET /history/anomaly for each month of `year`, in every biome
+        (and Brazil with `areas=biomes+country`), in one call. A month still in progress
+        is compared up to the record's last day with the same dates of the base years,
+        and flagged `partial`. A month that cannot be assessed has `class: null` and a
+        `reason`.
+      parameters:
+        - name: year
+          in: query
+          required: true
+          schema: { type: integer, minimum: 2001 }
+        - name: areas
+          in: query
+          schema: { type: string, enum: [biomes, biomes+country], default: biomes }
+        - $ref: "#/components/parameters/series"
+        - $ref: "#/components/parameters/base_start_year"
+        - $ref: "#/components/parameters/base_end_year"
+      responses:
+        "200":
+          description: Monthly anomalies per area.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AnomalyScan" }
+        "409": { $ref: "#/components/responses/HarmonizationPending" }
+        "422": { $ref: "#/components/responses/Invalid" }
+        "503": { $ref: "#/components/responses/HistoryUnavailable" }
 
   /history/season:
     get:
@@ -273,6 +365,7 @@ paths:
         - $ref: "#/components/parameters/bbox"
         - $ref: "#/components/parameters/biome"
         - $ref: "#/components/parameters/area_id"
+        - $ref: "#/components/parameters/country"
         - name: year
           in: query
           required: true
@@ -293,7 +386,7 @@ paths:
                     area: { kind: biome, biome: Pantanal, cells: 1301 }
                     series: modis
                     year: 2020
-                    total: 9717
+                    total: 9717.0
                     start_week: "2020-04-01"
                     peak_week: "2020-09-09"
                     end_week: "2020-10-21"
@@ -306,6 +399,7 @@ paths:
         "404": { $ref: "#/components/responses/UnknownArea" }
         "413": { $ref: "#/components/responses/AreaTooLarge" }
         "422": { $ref: "#/components/responses/Invalid" }
+        "503": { $ref: "#/components/responses/HistoryUnavailable" }
 
   /history/trend:
     get:
@@ -321,6 +415,7 @@ paths:
         - $ref: "#/components/parameters/bbox"
         - $ref: "#/components/parameters/biome"
         - $ref: "#/components/parameters/area_id"
+        - $ref: "#/components/parameters/country"
         - $ref: "#/components/parameters/series"
         - name: start_year
           in: query
@@ -342,29 +437,29 @@ paths:
                     unit: fire_cell_days
                     series: modis
                     annual:
-                      - { year: 2003, value: 3070, complete: true }
-                      - { year: 2004, value: 5438, complete: true }
-                      - { year: 2005, value: 7161, complete: true }
-                      - { year: 2006, value: 2681, complete: true }
-                      - { year: 2007, value: 5244, complete: true }
-                      - { year: 2008, value: 3336, complete: true }
-                      - { year: 2009, value: 3778, complete: true }
-                      - { year: 2010, value: 4748, complete: true }
-                      - { year: 2011, value: 2741, complete: true }
-                      - { year: 2012, value: 3823, complete: true }
-                      - { year: 2013, value: 2720, complete: true }
-                      - { year: 2014, value: 1352, complete: true }
-                      - { year: 2015, value: 3191, complete: true }
-                      - { year: 2016, value: 4019, complete: true }
-                      - { year: 2017, value: 3612, complete: true }
-                      - { year: 2018, value: 1479, complete: true }
-                      - { year: 2019, value: 5728, complete: true }
-                      - { year: 2020, value: 9717, complete: true }
-                      - { year: 2021, value: 3682, complete: true }
-                      - { year: 2022, value: 1261, complete: true }
-                      - { year: 2023, value: 2650, complete: true }
-                      - { year: 2024, value: 5034, complete: true }
-                      - { year: 2025, value: 476, complete: true }
+                      - { year: 2003, value: 3070.0, complete: true }
+                      - { year: 2004, value: 5438.0, complete: true }
+                      - { year: 2005, value: 7161.0, complete: true }
+                      - { year: 2006, value: 2681.0, complete: true }
+                      - { year: 2007, value: 5244.0, complete: true }
+                      - { year: 2008, value: 3336.0, complete: true }
+                      - { year: 2009, value: 3778.0, complete: true }
+                      - { year: 2010, value: 4748.0, complete: true }
+                      - { year: 2011, value: 2741.0, complete: true }
+                      - { year: 2012, value: 3823.0, complete: true }
+                      - { year: 2013, value: 2720.0, complete: true }
+                      - { year: 2014, value: 1352.0, complete: true }
+                      - { year: 2015, value: 3191.0, complete: true }
+                      - { year: 2016, value: 4019.0, complete: true }
+                      - { year: 2017, value: 3612.0, complete: true }
+                      - { year: 2018, value: 1479.0, complete: true }
+                      - { year: 2019, value: 5728.0, complete: true }
+                      - { year: 2020, value: 9717.0, complete: true }
+                      - { year: 2021, value: 3682.0, complete: true }
+                      - { year: 2022, value: 1261.0, complete: true }
+                      - { year: 2023, value: 2650.0, complete: true }
+                      - { year: 2024, value: 5034.0, complete: true }
+                      - { year: 2025, value: 476.0, complete: true }
                     slope_per_year: -95.2
                     ci95: [-193.6, 49.0]
                     significant: false
@@ -374,17 +469,28 @@ paths:
         "404": { $ref: "#/components/responses/UnknownArea" }
         "413": { $ref: "#/components/responses/AreaTooLarge" }
         "422": { $ref: "#/components/responses/Invalid" }
+        "503": { $ref: "#/components/responses/HistoryUnavailable" }
 
   /history/map:
     get:
       tags: [history]
       operationId: getMap
       summary: Fire cell-days per cell in a period, to paint the map
-      description: One entry per 0.1° cell with at least one fire cell-day in the period. Cells with no fire are left out.
+      description: |
+        One entry per cell with at least one fire cell-day in the period; cells with no
+        fire are left out. With `cell_degrees` coarser than 0.1, each 0.1° cell is
+        assigned to the coarse cell holding its centre and the values are summed, so they
+        stay fire cell-days of 0.1° cells. Above `max_map_cells` the answer is 413;
+        `cell_degrees=auto` picks the finest grid within the limit.
       parameters:
+        - name: cell_degrees
+          in: query
+          description: Grid of the answer (`auto` = finest grid within `max_map_cells`).
+          schema: { type: string, enum: ["0.1", "0.25", "0.5", "1", auto], default: "0.1" }
         - $ref: "#/components/parameters/bbox"
         - $ref: "#/components/parameters/biome"
         - $ref: "#/components/parameters/area_id"
+        - $ref: "#/components/parameters/country"
         - $ref: "#/components/parameters/start"
         - $ref: "#/components/parameters/end"
       responses:
@@ -402,12 +508,13 @@ paths:
                     grid_degrees: 0.1
                     period: { start: "2020-09-01", end: "2020-09-30" }
                     cells:
-                      - { cell_id: 2607629, lat: -17.55, lon: -57.05, harmonized: null, modis: 25, viirs: 29 }
-                      - { cell_id: 2618425, lat: -17.25, lon: -57.45, harmonized: null, modis: 15, viirs: 29 }
+                      - { cell_id: 2607629, lat: -17.55, lon: -57.05, harmonized: 25.0, modis: 25, viirs: 29 }
+                      - { cell_id: 2618425, lat: -17.25, lon: -57.45, harmonized: 15.0, modis: 15, viirs: 29 }
         "400": { $ref: "#/components/responses/BadArea" }
         "404": { $ref: "#/components/responses/UnknownArea" }
         "413": { $ref: "#/components/responses/AreaTooLarge" }
         "422": { $ref: "#/components/responses/Invalid" }
+        "503": { $ref: "#/components/responses/HistoryUnavailable" }
 
   /fires/live:
     get:
@@ -457,6 +564,8 @@ paths:
         `text/event-stream`. Events:
         - `snapshot`: data is a `FireCollection` (with `updated_at`).
         - `pulse`: data is a `Pulse`.
+        - `forecast`: data is a `ForecastAnchored`, sent when the forecast is
+          re-anchored on the live fires (re-fetch `GET /forecast`).
         - comment lines `: ping` keep idle connections open.
       responses:
         "200":
@@ -464,6 +573,86 @@ paths:
           content:
             text/event-stream:
               schema: { type: string }
+
+  /forecast:
+    get:
+      tags: [forecast]
+      operationId: getForecast
+      summary: Probability of fire per 0.25° cell for the next 7 days (lead 1 = today)
+      description: |
+        Base forecast: a U-Net turns the last 30 days of VIIRS S-NPP NRT fire maps
+        into, for every 0.25° cell of Brazil, the probability of at least one VIIRS
+        fire detection on each of the next 7 days. It is issued for the last complete
+        UTC day (`issued_for`), so `valid_dates[0]` is today. Recomputed every
+        `FORECAST_REFRESH_HOURS`.
+        Real-time anchor: after every pulse, a cell with a live fused fire seen in the
+        last `FORECAST_ANCHOR_HOURS` is raised to at least
+        confidence × P(fire persists j days) from the day it was seen; such cells have
+        `anchored: true`. The anchor never lowers the model's forecast.
+        Only cells inside the forecast mask (or anchored) and reaching `min_p` on some
+        day are listed. Model card: `GET /forecast/model`.
+      parameters:
+        - name: min_p
+          in: query
+          description: Only cells reaching this probability on any day.
+          schema: { type: number, minimum: 0, maximum: 1, default: 0.05 }
+        - $ref: "#/components/parameters/bbox"
+      responses:
+        "200":
+          description: The current forecast.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Forecast" }
+        "422": { $ref: "#/components/responses/Invalid" }
+        "503":
+          description: The forecast is disabled, or none has been issued yet (needs `FIRMS_MAP_KEY`).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /forecast/model:
+    get:
+      tags: [forecast]
+      operationId: getForecastModel
+      summary: Forecast model card
+      description: |
+        The model's `meta.json` (data, training/validation/test periods, inputs,
+        test average precision and Brier score against climatology and persistence,
+        persistence table) plus `status`.
+      responses:
+        "200":
+          description: Model card.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ForecastModel" }
+        "503":
+          description: The forecast is disabled.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /forecast/summary:
+    get:
+      tags: [forecast]
+      operationId: getForecastSummary
+      summary: Expected fire cells per biome (and Brazil) for each of the next 7 days
+      description: |
+        The current forecast summarised per region. Each 0.25° forecast cell belongs to
+        the biome holding most of the 0.1° cells whose centre falls in it. For each
+        region and day: `expected_fire_cells`, the sum of the cells' probabilities (the
+        expected number of 0.25° cells with at least one VIIRS fire detection), and
+        `cells_at_least_50`. Only forecast cells (the mask, or anchored) count.
+      responses:
+        "200":
+          description: Forecast per region.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ForecastSummary" }
+        "503":
+          description: The forecast is disabled or not issued yet, or the historical data (biome labels) is missing.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
 
   /health:
     get:
@@ -498,7 +687,7 @@ components:
     bbox:
       name: bbox
       in: query
-      description: Area as west,south,east,north in degrees (WGS84). History routes need exactly one of bbox, biome, area_id.
+      description: Area as west,south,east,north in degrees (WGS84). History routes need exactly one of bbox, biome, area_id, country.
       schema: { type: string, pattern: "^-?\\d+(\\.\\d+)?(,-?\\d+(\\.\\d+)?){3}$" }
       example: "-58,-19,-56,-17"
     biome:
@@ -511,6 +700,13 @@ components:
       in: query
       description: Id returned by POST /history/areas.
       schema: { type: string }
+    country:
+      name: country
+      in: query
+      description: |
+        A whole country: `BR` is Brazil (every cell labelled with an IBGE biome).
+        Predefined like a biome, so it is not held to `max_area_cells`.
+      schema: { type: string, enum: [BR] }
     start:
       name: start
       in: query
@@ -526,7 +722,7 @@ components:
     series:
       name: series
       in: query
-      description: Which series to compute on. Defaults to harmonized; until harmonization is available, the server answers `harmonized` requests with 409 and the client should fall back to `modis`.
+      description: Which series to compute on. Defaults to harmonized; until harmonization is available, the server answers `harmonized` requests with 409 and the client should fall back to `modis`. `viirs` is answered with 422 here, because it is not comparable across years.
       schema: { $ref: "#/components/schemas/Series" }
     base_start_year:
       name: base_start_year
@@ -546,17 +742,22 @@ components:
         application/json:
           schema: { $ref: "#/components/schemas/Error" }
     BadArea:
-      description: Not exactly one of bbox, biome, area_id was given.
+      description: Not exactly one of bbox, biome, area_id, country was given.
       content:
         application/json:
           schema: { $ref: "#/components/schemas/Error" }
-          example: { detail: "give exactly one of bbox, biome, area_id" }
+          example: { detail: "give exactly one of bbox, biome, area_id, country" }
     HarmonizationPending:
       description: series=harmonized was asked before the harmonized record exists (GET /history/meta, harmonization.status). Retry with series=modis.
       content:
         application/json:
           schema: { $ref: "#/components/schemas/Error" }
           example: { detail: "harmonized series not available yet; use series=modis" }
+    HistoryUnavailable:
+      description: The historical table is not built on this server (`python -m pipeline.serving`).
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
     UnknownArea:
       description: area_id was not created by POST /history/areas (or has expired).
       content:
@@ -591,13 +792,22 @@ components:
       default: harmonized
 
     Interval:
-      description: A harmonized estimate with its 90% interval.
+      description: |
+        A harmonized number with its 90% interval. From the MODIS source it is the
+        observed count (low = high = value). From the VIIRS estimate it is an
+        expected count: the sum over cell-days of P(MODIS would have detected fire)
+        times the coverage-gap factor, so not an integer.
       type: object
       required: [value, low, high]
       properties:
-        value: { type: number }
-        low: { type: number }
-        high: { type: number }
+        value: { type: number, description: "Fire cell-days, MODIS-equivalent." }
+        low: { type: number, description: 5th percentile. }
+        high: { type: number, description: 95th percentile. }
+
+    HarmonizedSource:
+      type: string
+      enum: [modis, viirs_estimate, mixed]
+      description: Where a harmonized value comes from; `mixed` when a bucket spans the switch.
 
     Period:
       type: object
@@ -610,7 +820,7 @@ components:
       type: object
       required: [kind, cells]
       properties:
-        kind: { type: string, enum: [bbox, biome, area_id] }
+        kind: { type: string, enum: [bbox, biome, area_id, country] }
         bbox:
           type: array
           items: { type: number }
@@ -618,6 +828,7 @@ components:
           maxItems: 4
         biome: { $ref: "#/components/schemas/Biome" }
         area_id: { type: string }
+        country: { type: string, enum: [BR] }
         cells: { type: integer, description: Number of 0.1° cells in the area. }
 
     AreaRequest:
@@ -683,6 +894,23 @@ components:
           required: [status]
           properties:
             status: { type: string, enum: [pending, available] }
+            method:
+              type: [string, "null"]
+              description: One-line description of how the harmonized series is built.
+            switch_date:
+              type: [string, "null"]
+              format: date
+              description: First day served from the VIIRS estimate instead of MODIS; null while MODIS is used throughout.
+            viirs_satellites:
+              type: array
+              description: VIIRS satellite behind the estimate, per period.
+              items:
+                type: object
+                required: [name, start, end]
+                properties:
+                  name: { type: string, enum: [SNPP, N20, N21] }
+                  start: { type: string, format: date }
+                  end: { type: [string, "null"], format: date }
             model: { type: [string, "null"] }
             version: { type: [string, "null"] }
             test_metrics:
@@ -723,8 +951,12 @@ components:
           oneOf:
             - { $ref: "#/components/schemas/Interval" }
             - { type: "null" }
-        modis: { type: [integer, "null"] }
-        viirs: { type: [integer, "null"] }
+        harmonized_source:
+          oneOf:
+            - { $ref: "#/components/schemas/HarmonizedSource" }
+            - { type: "null" }
+        modis: { type: [integer, "null"], description: Observed MODIS fire cell-days. }
+        viirs: { type: [integer, "null"], description: Observed VIIRS fire cell-days (any satellite). }
         provisional: { type: boolean }
 
     Calendar:
@@ -774,7 +1006,11 @@ components:
         period: { $ref: "#/components/schemas/Period" }
         value: { type: number }
         value_interval:
-          description: For the harmonized series, the 90% interval of `value`.
+          description: |
+            For series=harmonized, the 90% interval of `value`, built like a calendar
+            bucket: days served from MODIS are exact and the VIIRS-estimate part gets the
+            area's per-biome band (low = high = value when every day is MODIS). Null for
+            the other series.
           oneOf:
             - { $ref: "#/components/schemas/Interval" }
             - { type: "null" }
@@ -796,6 +1032,53 @@ components:
         excluded_years:
           type: array
           items: { type: integer }
+
+    AnomalyScan:
+      type: object
+      required: [unit, series, year, base_years, areas]
+      properties:
+        unit: { type: string, const: fire_cell_days }
+        series: { $ref: "#/components/schemas/Series" }
+        year: { type: integer }
+        base_years:
+          type: array
+          items: { type: integer }
+          minItems: 2
+          maxItems: 2
+        areas:
+          type: array
+          items:
+            type: object
+            required: [area, months]
+            properties:
+              area: { $ref: "#/components/schemas/AreaSummary" }
+              months:
+                type: array
+                items:
+                  type: object
+                  required: [start, end, partial, class]
+                  properties:
+                    start: { type: string, format: date }
+                    end: { type: string, format: date }
+                    partial: { type: boolean, description: The month is still in progress. }
+                    value: { type: number }
+                    normal:
+                      type: object
+                      required: [median, p10, p90]
+                      properties:
+                        median: { type: number }
+                        p10: { type: number }
+                        p90: { type: number }
+                    percentile: { type: number }
+                    ratio_to_median: { type: [number, "null"] }
+                    class:
+                      oneOf:
+                        - { type: string, enum: [below, normal, above, record] }
+                        - { type: "null" }
+                    base_years:
+                      type: array
+                      items: { type: integer }
+                    reason: { type: string, description: Why the month has no class. }
 
     Season:
       type: object
@@ -858,7 +1141,7 @@ components:
       properties:
         area: { $ref: "#/components/schemas/AreaSummary" }
         unit: { type: string, const: fire_cell_days }
-        grid_degrees: { type: number }
+        grid_degrees: { type: number, description: "Size of the cells in this answer: 0.1, 0.25, 0.5 or 1." }
         period: { $ref: "#/components/schemas/Period" }
         cells:
           type: array
@@ -866,12 +1149,19 @@ components:
             type: object
             required: [cell_id, lat, lon, harmonized, modis, viirs]
             properties:
-              cell_id: { type: integer, description: "row * 3600 + col, counted from (-90, -180) in 0.1° steps." }
+              cell_id: { type: integer, description: "row * n_cols + col of the answer's grid, counted from (-90, -180); n_cols = 360 / grid_degrees (3600 at 0.1°)." }
               lat: { type: number, description: Cell centre. }
               lon: { type: number, description: Cell centre. }
-              harmonized: { type: [number, "null"] }
-              modis: { type: [integer, "null"] }
-              viirs: { type: [integer, "null"] }
+              harmonized:
+                type: [number, "null"]
+                description: |
+                  MODIS-equivalent fire cell-days in this cell. From the VIIRS
+                  estimate it is an expected count (not an integer); the coverage gap
+                  of small fires VIIRS never sees cannot be located, so it is spread over
+                  the cells where VIIRS saw activity. Per-cell values are much less
+                  certain than area totals.
+              modis: { type: [integer, "null"], description: Observed MODIS fire cell-days. }
+              viirs: { type: [integer, "null"], description: Observed VIIRS fire cell-days. }
 
     PointGeometry:
       type: object
@@ -967,6 +1257,93 @@ components:
           type: array
           items: { type: string }
           description: fire_id values no longer live.
+
+    Forecast:
+      type: object
+      required: [model, issued_for, valid_dates, generated_at, anchored_at, resolution_deg, min_p, cells]
+      properties:
+        model: { type: string }
+        issued_for: { type: string, format: date, description: Last complete UTC day of input data. }
+        valid_dates:
+          type: array
+          description: The days the probabilities are for, one per lead (lead 1 = issued_for + 1).
+          items: { type: string, format: date }
+        generated_at: { type: string, format: date-time }
+        anchored_at: { type: [string, "null"], format: date-time }
+        resolution_deg: { type: number }
+        min_p: { type: number }
+        cells:
+          type: array
+          items:
+            type: object
+            required: [lat, lon, p, anchored]
+            properties:
+              lat: { type: number, description: Cell centre. }
+              lon: { type: number, description: Cell centre. }
+              p:
+                type: array
+                description: Probability of at least one VIIRS fire detection, one per valid date.
+                items: { type: number, minimum: 0, maximum: 1 }
+              anchored: { type: boolean, description: Raised by a live fire seen recently. }
+
+    ForecastSummary:
+      type: object
+      required: [model, issued_for, valid_dates, generated_at, resolution_deg, regions]
+      properties:
+        model: { type: string }
+        issued_for: { type: string, format: date }
+        valid_dates:
+          type: array
+          items: { type: string, format: date }
+        generated_at: { type: string, format: date-time }
+        anchored_at: { type: [string, "null"], format: date-time }
+        resolution_deg: { type: number }
+        regions:
+          type: array
+          items:
+            type: object
+            required: [kind, name, cells, expected_fire_cells, cells_at_least_50]
+            properties:
+              kind: { type: string, enum: [biome, country] }
+              name: { type: string }
+              cells: { type: integer, description: Forecast cells in the region. }
+              expected_fire_cells:
+                type: array
+                items: { type: number }
+                description: One per valid date.
+              cells_at_least_50:
+                type: array
+                items: { type: integer }
+                description: One per valid date.
+
+    ForecastModel:
+      type: object
+      description: The model card (models/fire_forecast_brazil/meta.json) plus status.
+      required: [model, status]
+      properties:
+        model: { type: string }
+        description: { type: string }
+        train_period: { type: array, items: { type: string, format: date } }
+        validation_period: { type: array, items: { type: string, format: date } }
+        test_period: { type: array, items: { type: string, format: date } }
+        resolution_deg: { type: number }
+        leads: { type: integer }
+        test_avg_precision: { type: object, additionalProperties: { type: number } }
+        test_brier: { type: object, additionalProperties: { type: number } }
+        status:
+          type: object
+          properties:
+            issued_for: { type: [string, "null"], format: date }
+            last_error: { type: [string, "null"] }
+      additionalProperties: true
+
+    ForecastAnchored:
+      type: object
+      required: [issued_for, anchored_at, anchored_cells]
+      properties:
+        issued_for: { type: string, format: date }
+        anchored_at: { type: string, format: date-time }
+        anchored_cells: { type: integer }
 
     Status:
       type: object

@@ -1,4 +1,5 @@
-import { Dot, Icon } from "../../shared/ui/ui";
+import { ApiStatusBadge } from "../../features/system/components/SystemStatus";
+import { Icon } from "../../shared/ui/ui";
 import { pages, type WorkspacePage } from "../navigation";
 export default function WorkspaceSidebar({
   menu,
@@ -34,7 +35,7 @@ export default function WorkspaceSidebar({
           <Icon name="globe" size={15} />
         </span>
         <span>
-          Global workspace<small>Research environment</small>
+          Brazil workspace<small>NASA FIRMS MODIS + VIIRS</small>
         </span>
         <Icon name="chevron" size={13} />
       </div>
@@ -55,13 +56,7 @@ export default function WorkspaceSidebar({
         ))}
       </nav>
       <div className="sidebar-bottom">
-        <div className="system-status">
-          <Dot />
-          <span>
-            Demo systems operational<small>OrbitBurn v1.0.0</small>
-          </span>
-          <Icon name="info" size={13} />
-        </div>
+        <ApiStatusBadge />
       </div>
     </aside>
   );

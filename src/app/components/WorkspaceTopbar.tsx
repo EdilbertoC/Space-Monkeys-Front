@@ -1,21 +1,16 @@
 import type { Dispatch, SetStateAction } from "react";
-import { getObservation } from "../../features/history/demo/demo-data";
-import { REGION_FACTORS } from "../../features/history/demo/region-factors";
-import { PreventiveNotifications } from "../../features/prevention-demo/components";
-import type { PreventionController } from "../../features/prevention-demo/usePrevention";
 import { Dot, Icon } from "../../shared/ui/ui";
 import { type WorkspacePage } from "../navigation";
+
+const API_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+
 export default function WorkspaceTopbar({
   page,
   notifications,
   setNotifications,
   profile,
   setProfile,
-  alertsEnabled,
-  prevention,
-  openPreventiveAlert,
   navigate,
-  setRegion,
   onOpenInfo,
   onOpenMenu,
 }: {
@@ -24,17 +19,10 @@ export default function WorkspaceTopbar({
   setNotifications: Dispatch<SetStateAction<boolean>>;
   profile: boolean;
   setProfile: Dispatch<SetStateAction<boolean>>;
-  alertsEnabled: boolean;
-  prevention: PreventionController;
-  openPreventiveAlert: (id: string) => void;
   navigate: (page: WorkspacePage) => void;
-  setRegion: (region: string) => void;
   onOpenInfo: () => void;
   onOpenMenu: () => void;
 }) {
-  const unreadAlertCount = prevention.alerts.filter(
-    (alert) => alert.readStatus === "unread",
-  ).length;
   return (
     <div className="topbar">
       <div className="breadcrumb">
@@ -50,8 +38,8 @@ export default function WorkspaceTopbar({
         <strong>{page}</strong>
       </div>
       <div className="topbar-right">
-        <span className="environment">
-          <Dot color="orange" /> Demo environment
+        <span className="environment" title={API_URL}>
+          <Dot color="green" /> Data: Space Monkeys API
         </span>
         <span className="topbar-divider" />
         <div className="popover-anchor">
@@ -65,85 +53,57 @@ export default function WorkspaceTopbar({
             }}
           >
             <Icon name="bell" size={19} />
-            {alertsEnabled && unreadAlertCount > 0 && (
-              <span
-                className="preventive-unread-count"
-                aria-label={`${unreadAlertCount} unread preventive alerts`}
-              >
-                {unreadAlertCount}
-              </span>
-            )}
           </button>
           {notifications && (
             <div className="popover notifications-popover">
-              {alertsEnabled ? (
-                <PreventiveNotifications
-                  controller={prevention}
-                  onOpen={openPreventiveAlert}
-                  onCenter={() => navigate("Alert Center")}
-                />
-              ) : (
-                <div className="empty-state">
-                  Notification previews are disabled in Settings. Supplied records remain available
-                  in the Alert Center.
+              <div className="empty-state">
+                The backend does not push alerts yet. Unusual months are computed on request in
+                Anomaly Alerts, and the 7-day outlook is in Risk Forecast.
+              </div>
+              <div className="notification-item">
+                <span className="notification-icon">
+                  <Icon name="alert" />
+                </span>
+                <div>
+                  <button
+                    className="text-link"
+                    onClick={() => {
+                      navigate("Anomaly Alerts");
+                      setNotifications(false);
+                    }}
+                  >
+                    Open Anomaly Alerts <Icon name="arrow" size={12} />
+                  </button>
+                  <button
+                    className="text-link"
+                    onClick={() => {
+                      navigate("Risk Forecast");
+                      setNotifications(false);
+                    }}
+                  >
+                    Open Risk Forecast <Icon name="arrow" size={12} />
+                  </button>
                 </div>
-              )}
-              <details className="observation-demo-notice">
-                <summary>Observation demonstration notice</summary>
-                {alertsEnabled ? (
-                  <div className="notification-item">
-                    <span className="notification-icon">
-                      <Icon name="alert" />
-                    </span>
-                    <div>
-                      <strong>Elevated activity in South America</strong>
-                      <p>
-                        Illustrative 24-hour snapshot: detections are{" "}
-                        {
-                          getObservation("Last 24 hours", REGION_FACTORS["South America"]).changes
-                            .total
-                        }{" "}
-                        versus the preceding 24 hours. This alert is independent of the selected
-                        observation window.
-                      </p>
-                      <button
-                        className="text-link"
-                        onClick={() => {
-                          setRegion("South America");
-                          navigate("Fire Map");
-                          setNotifications(false);
-                        }}
-                      >
-                        Explore region <Icon name="arrow" size={12} />
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="empty-state">
-                    Demo notifications are disabled. Enable them in Settings.
-                  </div>
-                )}
-                <div className="notification-foot">Simulated observation notice · Aug 24, 2026</div>
-              </details>
+              </div>
             </div>
           )}
         </div>
         <div className="popover-anchor">
           <button
             className="avatar"
-            aria-label="Open profile menu"
+            aria-label="Open workspace menu"
             aria-expanded={profile}
             onClick={() => {
               setProfile(!profile);
               setNotifications(false);
             }}
           >
-            AC
+            <Icon name="settings" size={16} />
           </button>
           {profile && (
             <div className="popover profile-popover">
-              <strong>Alex Carter</strong>
-              <span>Researcher · Demo workspace</span>
+              <strong>OrbitBurn workspace</strong>
+              <span>{API_URL}</span>
               <hr />
               <button
                 onClick={() => {

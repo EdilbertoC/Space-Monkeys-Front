@@ -3,8 +3,14 @@ import { createPortal } from "react-dom";
 import { Icon } from "../../../shared/ui/ui";
 import "./date-calendar.css";
 
-import { DEFAULT_DATES, isDateRange, resolveObservationPeriod } from "./date-range";
-import { isoDate as iso, parseDate as date, MONTHS as months } from "../demo/calendar-data";
+import {
+  DEFAULT_DATES,
+  isDateRange,
+  isoDate as iso,
+  MONTHS as months,
+  parseDate as date,
+  resolveObservationPeriod,
+} from "./date-range";
 export default function DateCalendar({
   value,
   onApply,

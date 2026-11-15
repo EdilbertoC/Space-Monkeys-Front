@@ -1,0 +1,109 @@
+/* SI-assisted: written with Claude (Anthropic), reviewed by the Space Monkeys team. See README. */
+.geo-map {
+  position: relative;
+  margin: 0 var(--space-lg);
+  border: var(--border-thin) solid var(--border);
+  border-radius: var(--radius-control);
+  overflow: hidden;
+  background: #0b1218;
+}
+.geo-map > svg {
+  display: block;
+  width: 100%;
+  height: 340px;
+}
+.geo-map.large > svg {
+  height: min(70vh, 640px);
+}
+.geo-sea {
+  fill: #0b1218;
+}
+.geo-grid {
+  stroke: #8498a826;
+}
+.geo-grid-label {
+  fill: #8498a8;
+}
+.geo-cell {
+  fill: #ff754f;
+}
+.geo-cell.l1 {
+  fill: #7a3424;
+}
+.geo-cell.l2 {
+  fill: #b14327;
+}
+.geo-cell.l3 {
+  fill: #e2582f;
+}
+.geo-cell.l4 {
+  fill: #ff8a5c;
+}
+.geo-cell.l5 {
+  fill: #ffd2a8;
+}
+.geo-fire {
+  stroke: #0b1218;
+  stroke-width: 0.06;
+  fill-opacity: 0.9;
+}
+.geo-fire.abi {
+  fill: #b48cff;
+}
+.geo-fire.viirs {
+  fill: var(--sensor-viirs);
+}
+.geo-fire.modis {
+  fill: var(--sensor-modis);
+}
+.geo-fire.multi {
+  fill: #ffffff;
+}
+.geo-fc {
+  stroke: none;
+}
+.geo-fc.b1 {
+  fill: #ffd16633;
+}
+.geo-fc.b2 {
+  fill: #ffb24d77;
+}
+.geo-fc.b3 {
+  fill: #ff7a3dbb;
+}
+.geo-fc.b4 {
+  fill: #ff3d2e;
+}
+.geo-fc.anchored {
+  stroke: #ffffff;
+  stroke-width: 0.06;
+}
+.geo-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  align-items: center;
+  padding: var(--space-sm) var(--space-md);
+  border-top: var(--border-thin) solid var(--border);
+  background: var(--panel);
+  font-size: var(--text-small);
+  color: var(--text-secondary);
+}
+.geo-legend i {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 4px;
+  border-radius: 2px;
+  vertical-align: -1px;
+}
+.geo-legend i.dot {
+  border-radius: 50%;
+}
+.geo-attribution {
+  position: absolute;
+  right: 8px;
+  top: 6px;
+  font-size: var(--text-caption);
+  color: var(--text-subtle);
+}

@@ -2,9 +2,9 @@
 
 ## Findings
 
-All 74 files under `src` have a documented purpose: 65 are reachable through application imports, eight belong to the planned backend integration, and one supplies TypeScript declarations. No unresolved relative imports or unreferenced source files were found. Reachability includes type imports and lazy imports; it does not mean every module executes on initial load.
+All 48 files under `src` have a documented purpose: 47 are reachable through application imports and 1 supplies TypeScript declarations. No unresolved relative imports or unreferenced source files were found. Reachability includes type imports and lazy imports; it does not mean every module executes on initial load.
 
-No application file was deleted. Removing files solely because the backend connection is not active would discard the agreed integration work. Conversely, the eight integration files are not presented as necessary to display the current demonstration.
+All demonstration modules (fixtures, the illustrative calendar, map markers and the prevention prototype) and their tests and stylesheets were removed when every page was connected to the Space Monkeys API.
 
 Run `npm run files:audit` for a summary, or `npm run files:audit -- --json` for the full inventory. The script checks local module references, including test imports, using the existing TypeScript dependency. It exits unsuccessfully if it finds an unresolved local import or an unreferenced source file. Future entrypoints are explicitly listed rather than automatically treating every file as planned work.
 
@@ -27,8 +27,7 @@ Run `npm run files:audit` for a summary, or `npm run files:audit -- --json` for 
 | `scripts/check-api-types.mjs` | Detects drift between generated types and the OpenAPI contract. |
 | `scripts/validate_contract.py` | Optional complete contract/example and live-response validation; not a browser dependency. |
 | `scripts/audit-files.mjs` | Reproducible source usage and local import audit. |
-| `public/world-map.svg` | Referenced by the SVG image in `FireMap.tsx`; it supplies the geographic background. |
-| `src/features/map/demo/map-data.json` | Supplies the 1,008 synthetic markers; it does not duplicate the geographic background SVG. |
+| `public/world-map.svg` | Basemap of `GeoMap.tsx`; lon/lat are projected onto it by `shared/geo/projection.ts`. |
 | `public/favicon.png` | Used by the Vite site configuration as the browser icon. |
 | `public/data-attribution.txt` | Map attribution and scientific provenance information; useful even though it is not imported by JavaScript. |
 | `tests/*` | Automated verification; not shipped to the browser. |
@@ -53,86 +52,60 @@ No backend route, response format, satellite value, CSS rule, or visual identity
 ## Validation and limits
 
 - TypeScript, the test suite, the production build, generated API type verification, formatting, and source usage checks were run after the changes.
-- Regression tests cover non-global map focus and nonempty SVG titles without React warnings. Existing satellite, date, calendar, anomaly, prevention, and transport tests remain in place.
+- Tests cover the API transport and services, the presentation helpers (area, period, calendar grid, monthly anomaly classification, projection) and the sensor metadata.
 - Import reachability is evidence of use, not proof that every exported function or every branch is exercised. Dynamic CSS state selectors were retained because deleting them without browser interaction coverage could remove valid states.
-- The current screens remain demonstrations. Backend service entrypoints are retained for the documented integration; they do not silently replace simulated data.
+- Every page reads the Space Monkeys API; on failure a page shows the error and never falls back to fixtures.
 - No linter is configured. A real browser interaction review and live backend validation remain separate from these automated checks.
 
 ## Source inventory
 
 | File | Referenced by |
 | --- | --- |
-| src/app/api.ts | backend integration |
+| src/app/api.ts | application |
 | src/app/App.tsx | application |
 | src/app/components/AboutDialog.tsx | application |
-| src/app/components/ObservationKpis.tsx | application |
 | src/app/components/WorkspaceSidebar.tsx | application |
 | src/app/components/WorkspaceTopbar.tsx | application |
 | src/app/navigation.ts | application |
-| src/features/history/api/history.ts | backend integration |
-| src/features/history/components/ActivityTimeline.tsx | application |
-| src/features/history/components/AnomalyAlerts.tsx | application |
-| src/features/history/components/BurningActivityCalendar.tsx | application |
-| src/features/history/components/CalendarDayDetail.tsx | application |
-| src/features/history/components/CalendarFilter.tsx | application |
-| src/features/history/components/CalendarInsights.tsx | application |
-| src/features/history/components/CalendarMonthlyComparison.tsx | application |
-| src/features/history/components/ExplorerHistory.tsx | application |
-| src/features/history/components/HarmonizedCalendar.tsx | application |
-| src/features/history/components/PriorityAnomalyTable.tsx | application |
-| src/features/history/components/RecentActivityTable.tsx | application |
+| src/features/forecast/api/forecast.ts | application |
+| src/features/forecast/components/ForecastPage.tsx | application |
+| src/features/history/api/history.ts | application |
+| src/features/history/components/AnomalyScan.tsx | application |
+| src/features/history/components/HistoricalAnalysis.tsx | application |
+| src/features/history/components/HistoryParts.tsx | application |
+| src/features/history/components/HistoryWorkspace.tsx | application |
+| src/features/history/components/PeriodOverview.tsx | application |
 | src/features/history/date-selection/date-calendar.css | application |
 | src/features/history/date-selection/date-range.ts | application |
 | src/features/history/date-selection/DateCalendar.tsx | application |
-| src/features/history/demo/calendar-data.ts | application |
-| src/features/history/demo/demo-data.ts | application |
-| src/features/history/demo/exploration.ts | application |
-| src/features/history/demo/harmonized-preview.ts | application |
-| src/features/history/demo/priority-scenarios.ts | application |
-| src/features/history/demo/recent-activity.ts | application |
-| src/features/history/demo/region-factors.ts | application |
-| src/features/history/model/calendar-presentation.ts | application |
-| src/features/history/styles/calendar.css | application |
-| src/features/history/styles/exploration.css | application |
-| src/features/history/styles/harmonized-calendar.css | application |
-| src/features/history/styles/priority-anomalies.css | application |
-| src/features/live/api/live.ts | backend integration |
-| src/features/map/components/FireMap.tsx | application |
-| src/features/map/components/HotspotTooltip.tsx | application |
-| src/features/map/components/MapAreaSelection.tsx | application |
-| src/features/map/components/MapLocationDialog.tsx | application |
-| src/features/map/demo/map-data.json | application |
-| src/features/map/model/map-location.ts | application |
-| src/features/map/styles/map-location.css | application |
-| src/features/prevention-demo/AlertCenter.tsx | application |
-| src/features/prevention-demo/components.tsx | application |
-| src/features/prevention-demo/config.ts | application |
-| src/features/prevention-demo/contracts.ts | application |
-| src/features/prevention-demo/demo.ts | application |
-| src/features/prevention-demo/Overview.tsx | application |
-| src/features/prevention-demo/presentation.ts | application |
-| src/features/prevention-demo/prevention.css | application |
-| src/features/prevention-demo/RiskForecast.tsx | application |
-| src/features/prevention-demo/source.ts | application |
-| src/features/prevention-demo/usePrevention.ts | application |
+| src/features/history/model/anomaly-scan.ts | application |
+| src/features/history/model/area.ts | application |
+| src/features/history/model/history-view.ts | application |
+| src/features/history/model/period.ts | application |
+| src/features/history/styles/history-workspace.css | application |
+| src/features/live/api/live.ts | application |
+| src/features/live/components/LiveFiresTable.tsx | application |
+| src/features/map/components/FireMapPanel.tsx | application |
+| src/features/map/components/GeoMap.tsx | application |
+| src/features/map/styles/geo-map.css | application |
 | src/features/sensors/SatelliteSources.tsx | application |
 | src/features/sensors/SensorControls.tsx | application |
 | src/features/sensors/SensorHarmonization.tsx | application |
 | src/features/sensors/sensors.css | application |
 | src/features/sensors/sensors.ts | application |
 | src/features/settings/WorkspaceSettings.tsx | application |
-| src/features/system/api/system.ts | backend integration |
+| src/features/system/api/system.ts | application |
+| src/features/system/components/SystemStatus.tsx | application |
 | src/main.tsx | application |
-| src/shared/api/generated/schema.ts | backend integration |
-| src/shared/api/http.ts | backend integration |
-| src/shared/api/types.ts | backend integration |
-| src/shared/api/useApiResource.ts | backend integration |
-| src/shared/constants/geography.ts | application |
-| src/shared/lib/download-csv.ts | application |
+| src/shared/api/generated/schema.ts | application |
+| src/shared/api/http.ts | application |
+| src/shared/api/types.ts | application |
+| src/shared/api/useApi.ts | application |
+| src/shared/api/useApiResource.ts | application |
+| src/shared/geo/projection.ts | application |
 | src/shared/lib/format-count.ts | application |
 | src/shared/styles/index.css | application |
 | src/shared/styles/refinements.css | application |
-| src/shared/ui/DataStatus.tsx | application |
 | src/shared/ui/SelectControl.tsx | application |
 | src/shared/ui/ui.tsx | application |
 | src/vite-env.d.ts | TypeScript declarations |

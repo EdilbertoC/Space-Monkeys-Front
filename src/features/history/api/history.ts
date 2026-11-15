@@ -1,6 +1,7 @@
 import { ApiError, HttpClient, type RequestOptions } from "../../../shared/api/http.ts";
 import type {
   AnomalyQuery,
+  AnomalyScanQuery,
   AreaSelector,
   BBox,
   CalendarQuery,
@@ -30,9 +31,11 @@ export function bboxSelector(bbox: BBox): AreaSelector {
 }
 
 function validateQuery(query: AreaSelector & { start?: string; end?: string }) {
-  const selectors = [query.bbox, query.biome, query.area_id].filter((value) => value !== undefined);
+  const selectors = [query.bbox, query.biome, query.area_id, query.country].filter(
+    (value) => value !== undefined,
+  );
   if (selectors.length !== 1 || !selectors[0]?.trim())
-    throw new Error("Give exactly one of bbox, biome, area_id");
+    throw new Error("Give exactly one of bbox, biome, area_id, country");
   if (query.bbox !== undefined) {
     if (!/^-?\d+(\.\d+)?(,-?\d+(\.\d+)?){3}$/.test(query.bbox))
       throw new Error("Invalid bbox format");
@@ -115,6 +118,12 @@ export function createHistoryApi(http: HttpClient) {
     getMap(query: MapQuery, options?: RequestOptions) {
       validateQuery(query);
       return http.get("/history/map", query, options);
+    },
+    /** Every month of a year against normal, for every biome (and Brazil), in one call. */
+    getAnomalyScan(query: AnomalyScanQuery, options?: RequestOptions) {
+      return withSeries(query.series, (series) =>
+        http.get("/history/anomalies", { ...query, series }, options),
+      );
     },
   };
 }

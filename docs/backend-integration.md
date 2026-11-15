@@ -20,11 +20,15 @@ Generated types check consumers at compile time. The transport rejects invalid J
 | `historyApi.getSeason` | GET | `/history/season` |
 | `historyApi.getTrend` | GET | `/history/trend` |
 | `historyApi.getMap` | GET | `/history/map` |
+| `historyApi.getAnomalyScan` | GET | `/history/anomalies` |
 | `liveApi.getFires` | GET | `/fires/live` |
 | `liveApi.getDetections` | GET | `/detections/recent` |
 | `subscribeFires(http, handlers)` | SSE | `/fires/stream` |
 | `systemApi.getHealth` | GET | `/health` |
 | `systemApi.getStatus` | GET | `/status` |
+| `forecastApi.getForecast` | GET | `/forecast` |
+| `forecastApi.getModel` | GET | `/forecast/model` |
+| `forecastApi.getSummary` | GET | `/forecast/summary` |
 
 ## Using services in a screen
 
@@ -68,6 +72,37 @@ For a rectangular area, use `bboxSelector([west, south, east, north])`. For poly
 
 Replace the state with the received `snapshot`. For pulses, use `applyPulse(previous, pulse)`: it updates records by `fire_id`, adds new events, and removes the identifiers in `removed`. The contract defines no stream filters; filter locally or query `/fires/live` for filtered searches. Close the connection when leaving the screen to avoid accumulating subscribers.
 
-## Current limitations
+## Which page reads what
 
-The demonstration screens are not yet connected to the services. The contract marks `/history/*` as planned and does not guarantee that these routes are already available. Automated service tests use simulated transport; end-to-end validation requires a running backend.
+The area (Brazil, a biome or a lon/lat box) and the period are shared by Overview, Fire Map, Historical Analysis and Burning Calendar. `/history/meta` is read once by `App` and passed down; the default period is the last 30 days of the record.
+
+| Page | Routes |
+| --- | --- |
+| Overview | `/history/calendar` (KPIs, chart), `/history/anomaly` (period vs normal, with interval), `/history/map?cell_degrees=auto` + `/fires/live` (map), `/forecast/summary` (Brazil card), `/fires/live` (table) |
+| Fire Map | `/history/map?cell_degrees=auto`, `/fires/live` |
+| Burning Calendar | `/history/calendar` (day and week), `/history/climatology`, `/history/anomaly`, `/history/season`, `/history/trend` |
+| Historical Analysis | `/history/calendar` (KPIs, VIIRS yearly totals), `/history/trend` (harmonized and MODIS), `/history/meta` (method) |
+| Anomaly Alerts | `/history/anomalies?areas=biomes+country` (one call) |
+| Risk Forecast | `/forecast`, `/forecast/model`, `/forecast/summary` (table by biome) |
+| Alert Center | none: the backend has no alert routes, and the page says so |
+| Data Sources | `/status`, `/history/meta` |
+| Sidebar | `/status` |
+
+## Backend gaps
+
+Found while wiring the pages. Contract 0.7.0 (ryangustav/Space-Monkeys#4) closes the ones marked done, and the front uses them.
+
+| # | Gap | State |
+| --- | --- | --- |
+| 1 | `/forecast` and FIRMS NRT need `FIRMS_MAP_KEY` on the server | configuration |
+| 2 | No national area (Brazil has 160,000 cells as a box, above `max_area_cells`) | done: `country=BR`, "Brazil (all biomes)" in the area picker |
+| 3 | No named administrative areas (states, municipalities, conservation units, indigenous lands) | open: needs a boundary dataset |
+| 4 | No alert routes (issue, store, deliver, read state) | open: needs product decisions; Alert Center and the bell stay empty |
+| 5 | Anomaly Alerts needed 12 requests (about 20 s) | done: `/history/anomalies`, about 2 s, with Brazil and the month in progress |
+| 6 | Analytics took about 2 s per request | done: per-area series cache warmed at start-up, tens of milliseconds |
+| 7 | `value_interval` always null | done for `series=harmonized` (low = high while MODIS covers every day) |
+| 8 | `/history/map` answered 413 above 20,000 cells | done: `cell_degrees`, the front asks for `auto` |
+| 9 | `/fires/live` does not filter by biome or area | open: the live routes are in the frozen real-time part |
+| 10 | Forecast listed per cell only | done: `/forecast/summary` per biome and Brazil |
+
+Automated service tests use simulated transport; end-to-end validation requires a running backend.

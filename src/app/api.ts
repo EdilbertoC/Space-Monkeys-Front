@@ -1,3 +1,4 @@
+import { createForecastApi } from "../features/forecast/api/forecast.ts";
 import { createHistoryApi } from "../features/history/api/history.ts";
 import { createLiveApi } from "../features/live/api/live.ts";
 import { createSystemApi } from "../features/system/api/system.ts";
@@ -7,3 +8,4 @@ export const http = new HttpClient(import.meta.env.VITE_API_BASE_URL || "http://
 export const historyApi = createHistoryApi(http);
 export const liveApi = createLiveApi(http);
 export const systemApi = createSystemApi(http);
+export const forecastApi = createForecastApi(http);

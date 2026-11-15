@@ -1,14 +1,15 @@
-OrbitBurn demo data attribution
+OrbitBurn data attribution
 
 World map: Natural Earth public-domain country boundaries, distributed by
 datasets/geo-countries (https://github.com/datasets/geo-countries).
 Geometry is simplified and rendered using an equirectangular projection.
 
-Hotspot coordinates, detection counts, trends, comparisons, and alerts are
-synthetic illustrative data. They are not NASA observations.
+Fire data shown in the app comes from the Space Monkeys API: NASA FIRMS MODIS
+C6.1 and VIIRS 375 m active fire products (historical record and forecast input)
+and NOAA GOES ABI fire detections (live layer).
 
 MODIS and VIIRS sensor descriptions reference public NASA FIRMS documentation:
 https://firms.modaps.eosdis.nasa.gov/
 
 OrbitBurn is an independent NASA Space Apps Challenge 2026 concept.
-No NASA affiliation, endorsement, or live data connection is implied.
+No NASA affiliation or endorsement is implied.
