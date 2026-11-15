@@ -214,7 +214,8 @@
   }
 }
 #root .header-filters {
-  align-items: center;
+  /* Both filters are label + control: align the controls on the same baseline. */
+  align-items: flex-end;
   gap: 10px;
 }
 #root .header-filters > .orbit-select {

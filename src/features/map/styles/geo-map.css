@@ -18,11 +18,22 @@
 .geo-sea {
   fill: #0f0e0c;
 }
+/* Same colours as public/world-map.svg; borders keep 1px on screen at any zoom. */
+.geo-land path {
+  fill: #2d2a25;
+  stroke: #4d473e;
+  stroke-width: 1px;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
 .geo-grid {
-  stroke: #948d8126;
+  stroke: #948d8133;
+  stroke-width: 1px;
+  vector-effect: non-scaling-stroke;
 }
 .geo-grid-label {
   fill: #948d81;
+  pointer-events: none;
 }
 .geo-cell {
   fill: #ff754f;
@@ -44,7 +55,8 @@
 }
 .geo-fire {
   stroke: #0f0e0c;
-  stroke-width: 0.06;
+  stroke-width: 1px;
+  vector-effect: non-scaling-stroke;
   fill-opacity: 0.9;
 }
 .geo-fire.abi {
@@ -106,4 +118,47 @@
   top: 6px;
   font-size: var(--text-caption);
   color: var(--text-subtle);
+}
+.geo-map > svg {
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+.geo-map > svg.dragging {
+  cursor: grabbing;
+}
+.geo-zoom {
+  position: absolute;
+  left: 8px;
+  top: 8px;
+  display: flex;
+  flex-direction: column;
+  border: var(--border-thin) solid var(--border);
+  border-radius: var(--radius-control);
+  overflow: hidden;
+  background: var(--panel);
+}
+.geo-zoom button {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  font-size: 18px;
+  line-height: 1;
+  color: var(--text-primary);
+  background: transparent;
+  cursor: pointer;
+}
+.geo-zoom button + button {
+  border-top: var(--border-thin) solid var(--border);
+}
+.geo-zoom button:hover:not(:disabled) {
+  background: var(--border);
+}
+.geo-zoom button:disabled {
+  color: var(--text-subtle);
+  cursor: default;
+}
+.geo-zoom .geo-zoom-reset {
+  font-size: 15px;
 }

@@ -269,7 +269,7 @@ export function TrendCard({
 
 export const W = 760;
 export const H = 190;
-export const PAD = { left: 40, right: 10, top: 10, bottom: 22 };
+export const PAD = { left: 58, right: 12, top: 10, bottom: 22 };
 
 export function WeeklyChart({
   weeks,
@@ -379,6 +379,12 @@ export function TrendChart({
   const step = (W - PAD.left - PAD.right) / Math.max(1, n);
   const x = (i: number) => PAD.left + i * step + step / 2;
   const y = (v: number) => PAD.top + (1 - v / max) * (H - PAD.top - PAD.bottom);
+  // Four-digit years need ~26 units at 9px: label every Nth bar so they never overlap,
+  // and drop the regular labels that would collide with the selected year's label.
+  const labelStride = Math.max(1, Math.ceil(28 / step));
+  const selectedIndex = annual.findIndex((a) => a.year === selected);
+  const nearSelected = (i: number) =>
+    selectedIndex >= 0 && Math.abs(i - selectedIndex) < labelStride;
   return (
     <div className="hw-chart">
       <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Fire cell-days per year">
@@ -408,14 +414,14 @@ export function TrendChart({
                 y2={y(a.interval.high)}
               />
             )}
-            {(i % 2 === 0 || a.year === selected) && (
+            {(a.year === selected || (i % labelStride === 0 && !nearSelected(i))) && (
               <text
                 className={`hw-axis ${a.year === selected ? "sel" : ""}`}
                 x={x(i)}
                 y={H - 6}
                 textAnchor="middle"
               >
-                {String(a.year).slice(2)}
+                {a.year}
               </text>
             )}
             <rect

@@ -39,7 +39,6 @@ export default function FireMapPanel({
     (areaBox && areaBox.length === 4 ? (areaBox as Bounds) : null) ??
     boundsOf(cells) ??
     BRAZIL_BOUNDS;
-  const scale = Math.max(0.15, (bounds[2] - bounds[0]) / 90);
   const fires = live.data?.features ?? [];
 
   return (
@@ -107,7 +106,7 @@ export default function FireMapPanel({
           {map.status === "success" && (
             <HistoryCellsLayer cells={cells} series={series} gridDegrees={map.data.grid_degrees} />
           )}
-          {showLive && <LiveFiresLayer fires={fires} scale={scale} />}
+          {showLive && <LiveFiresLayer fires={fires} />}
         </GeoMap>
       )}
     </section>

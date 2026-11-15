@@ -133,7 +133,12 @@ export default function App() {
             {showFilters && ready && (
               <div className="header-filters">
                 <AreaPicker meta={ready.meta} value={area} onChange={setArea} />
-                {DATED.includes(page) && <DateCalendar value={periodValue} onApply={applyPeriod} />}
+                {DATED.includes(page) && (
+                  <div className="hw-field hw-dates">
+                    <span>Dates</span>
+                    <DateCalendar value={periodValue} onApply={applyPeriod} />
+                  </div>
+                )}
               </div>
             )}
           </header>
