@@ -48,7 +48,7 @@ info:
       no fire-risk index, hotspot counts or FRP.
     - **Sensors**: the historical record uses MODIS (Terra, Aqua) and VIIRS (S-NPP,
       NOAA-20, NOAA-21) from NASA FIRMS. The forecast model is trained on VIIRS
-      S-NPP and fed with VIIRS S-NPP NRT. GOES ABI is used only by the real-time
+      S-NPP and fed with VIIRS NOAA-20 NRT (S-NPP ended on 2026-11-02). GOES ABI is used only by the real-time
       routes (`live`) and to anchor the forecast on fires burning now. Landsat and
       Sentinel-3 SLSTR are not used.
     - **Dates** are ISO 8601 UTC days. Periods are inclusive of `start` and `end`.
@@ -580,7 +580,7 @@ paths:
       operationId: getForecast
       summary: Probability of fire per 0.25° cell for the next 7 days (lead 1 = today)
       description: |
-        Base forecast: a U-Net turns the last 30 days of VIIRS S-NPP NRT fire maps
+        Base forecast: a U-Net turns the last 30 days of VIIRS NOAA-20 NRT fire maps
         into, for every 0.25° cell of Brazil, the probability of at least one VIIRS
         fire detection on each of the next 7 days. It is issued for the last complete
         UTC day (`issued_for`), so `valid_dates[0]` is today. Recomputed every
@@ -606,6 +606,39 @@ paths:
         "422": { $ref: "#/components/responses/Invalid" }
         "503":
           description: The forecast is disabled, or none has been issued yet (needs `FIRMS_MAP_KEY`).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /forecast/outlook:
+    get:
+      tags: [forecast]
+      operationId: getForecastOutlook
+      summary: The 7-day forecast summed over an area, next to the normal for those dates
+      description: |
+        Links the forecast to the calendar's question "is this above normal?". For
+        each of the 7 forecast days: `expected_fire_cells` is the sum of the forecast
+        probabilities over the area's 0.25° forecast cells (the expected number of
+        cells with at least one VIIRS detection), and `normal_fire_cells` is the same
+        sum over the climatology the model was trained with (VIIRS S-NPP, 2012–2022,
+        smoothed over ±7 days). `ratio_to_normal` above 1 means more fire expected
+        than usual for those dates. These are forecast units (0.25° cells, VIIRS):
+        they are not the MODIS-equivalent fire cell-days of `/history` and must not
+        be added to or compared with them. Give exactly one of `bbox` or `biome`;
+        `biome` needs the historical data (503 otherwise).
+      parameters:
+        - $ref: "#/components/parameters/bbox"
+        - $ref: "#/components/parameters/biome"
+      responses:
+        "200":
+          description: Forecast and normal per day and for the week.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ForecastOutlook" }
+        "400": { $ref: "#/components/responses/BadArea" }
+        "422": { $ref: "#/components/responses/Invalid" }
+        "503":
+          description: No forecast yet, forecast disabled, or biome asked without historical data.
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
@@ -1315,6 +1348,43 @@ components:
                 type: array
                 items: { type: integer }
                 description: One per valid date.
+
+    ForecastOutlook:
+      type: object
+      required: [area, issued_for, unit, forecast_cells, days, week]
+      properties:
+        area:
+          type: object
+          required: [kind]
+          properties:
+            kind: { type: string, enum: [bbox, biome] }
+            bbox: { type: array, items: { type: number }, minItems: 4, maxItems: 4 }
+            biome: { $ref: "#/components/schemas/Biome" }
+        model: { type: string }
+        issued_for: { type: string, format: date }
+        generated_at: { type: string, format: date-time }
+        anchored_at: { type: [string, "null"], format: date-time }
+        unit: { type: string, const: expected_fire_cells_per_day }
+        resolution_deg: { type: number }
+        forecast_cells: { type: integer, description: Forecast cells of the area. }
+        anchored_cells: { type: integer, description: Cells raised by fires burning now. }
+        days:
+          type: array
+          items:
+            type: object
+            required: [date, expected_fire_cells, normal_fire_cells, ratio_to_normal]
+            properties:
+              date: { type: string, format: date }
+              expected_fire_cells: { type: number }
+              normal_fire_cells: { type: number }
+              ratio_to_normal: { type: [number, "null"] }
+        week:
+          type: object
+          required: [expected_fire_cell_days, normal_fire_cell_days, ratio_to_normal]
+          properties:
+            expected_fire_cell_days: { type: number }
+            normal_fire_cell_days: { type: number }
+            ratio_to_normal: { type: [number, "null"] }
 
     ForecastModel:
       type: object
