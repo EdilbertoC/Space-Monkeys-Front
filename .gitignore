@@ -1,9 +1,4 @@
-node_modules/
-dist/
-build/
-.env
-.env.*
-!.env.example
+# Local Python tooling used for contract validation.
 __pycache__/
 *.pyc
 .venv/
@@ -14,18 +9,32 @@ venv/
 *.log
 data/raw/
 
+# Dependencies and generated build output.
 node_modules/
 dist/
 build/
 .cache/
 .env*
 !.env.example
+# Local credentials and private signing material.
+.aws/
+.ssh/
+.npmrc
+.netrc
+credentials.json
+service-account*.json
+*.credentials.json
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
 .vite/
 vite.config.*.timestamp-*
 *.tsbuildinfo
 *-debug.log*
 logs/
-*.log
 .claude-replay.*
 .tmp-*
 /.figma/design-context/

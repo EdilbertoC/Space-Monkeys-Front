@@ -4,11 +4,7 @@ import { Icon } from "../../../shared/ui/ui";
 import "./date-calendar.css";
 
 import { DEFAULT_DATES, isDateRange, resolveObservationPeriod } from "./date-range";
-const iso = (d: Date) => d.toISOString().slice(0, 10);
-const date = (s: string) => new Date(`${s}T00:00:00Z`);
-const months = Array.from({ length: 12 }, (_, i) =>
-  new Date(Date.UTC(2026, i)).toLocaleString("en-US", { month: "long", timeZone: "UTC" }),
-);
+import { isoDate as iso, parseDate as date, MONTHS as months } from "../demo/calendar-data";
 export default function DateCalendar({
   value,
   onApply,

@@ -128,9 +128,7 @@ export default function CalendarMonthlyComparison({
                 }}
               >
                 <title>
-                  {m.name}: {formatCalendarCount(m.total)} hotspots; baseline{" "}
-                  {formatCalendarCount(m.baseline)}; {m.days} observed days;{" "}
-                  {signedPercent(m.deviation)}
+                  {`${m.name}: ${formatCalendarCount(m.total)} hotspots; baseline ${formatCalendarCount(m.baseline)}; ${m.days} observed days; ${signedPercent(m.deviation)}`}
                 </title>
                 <rect
                   className="burn-bar-hit"

@@ -419,9 +419,7 @@ export function RiskEvolutionChart({
                       onBlur={() => setHover(null)}
                       onMouseEnter={() => setHover(a.id)}
                     >
-                      <title>
-                        {dateTime(a.issuedAt)} · {a.value} · {a.classification}
-                      </title>
+                      <title>{`${dateTime(a.issuedAt)} · ${a.value} · ${a.classification}`}</title>
                     </circle>
                   ))}
                   <text x="52" y="174">

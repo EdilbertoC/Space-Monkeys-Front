@@ -1,3 +1,6 @@
+# Keep text files consistent across Windows, Linux, and macOS checkouts.
+* text=auto eol=lf
+
 # Git LFS Tracking Rules
 # Generated for binary, large, and non-diffable file types
 

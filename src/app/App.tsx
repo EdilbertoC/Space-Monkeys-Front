@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import ActivityTimeline from "../features/history/components/ActivityTimeline";
 import RecentActivityTable from "../features/history/components/RecentActivityTable";
 import { getObservation } from "../features/history/demo/demo-data";
@@ -60,6 +60,8 @@ const BurningActivityCalendar = lazy(
   () => import("../features/history/components/BurningActivityCalendar"),
 );
 
+const TOAST_DURATION_MS = 4000;
+
 export default function App() {
   return (
     <SensorLayersProvider>
@@ -106,6 +108,13 @@ function OrbitBurn() {
   const [profile, setProfile] = useState(false);
   const [info, setInfo] = useState(false);
   const [toast, setToast] = useState("");
+  const toastTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (toastTimeout.current !== null) clearTimeout(toastTimeout.current);
+    },
+    [],
+  );
   const [year, setYear] = useState(String(latestDemoYear));
   const [anomalyStatuses, setAnomalyStatuses] = useState<Record<string, AnomalyStatus>>({});
   const [dismissedAnomalies, setDismissedAnomalies] = useState<string[]>([]);
@@ -163,8 +172,12 @@ function OrbitBurn() {
     navigate("Alert Center");
   };
   const notify = (message: string) => {
+    if (toastTimeout.current !== null) clearTimeout(toastTimeout.current);
     setToast(message);
-    window.setTimeout(() => setToast(""), 4000);
+    toastTimeout.current = setTimeout(() => {
+      setToast("");
+      toastTimeout.current = null;
+    }, TOAST_DURATION_MS);
   };
   const openAnomaly = (alert: DemoAnomaly) => {
     setPeriod(`${alert.date}/${alert.date}`);

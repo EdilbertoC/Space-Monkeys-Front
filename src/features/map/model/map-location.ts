@@ -1,5 +1,19 @@
 import type { SensorId, SensorObservation } from "../../sensors/sensors.ts";
 
+const REGION_CENTERS: Record<string, readonly [number, number]> = {
+  Global: [500, 225],
+  "South America": [337, 300],
+  "North America": [220, 140],
+  Africa: [555, 270],
+  Europe: [535, 120],
+  Asia: [780, 150],
+  Oceania: [890, 340],
+};
+
+export function mapCenterForRegion(region: string): readonly [number, number] {
+  return REGION_CENTERS[region] ?? REGION_CENTERS.Global;
+}
+
 export interface MapLocationSelection {
   region: string;
   sensor: SensorId;

@@ -201,14 +201,14 @@ export function getHistory(months: number, endYear: number, regionScale: number,
   };
 }
 
-function getSelectedHistoryCore(period: string, factor: number, weekly = false) {
+function selectedHistoryPoints(period: string, factor: number, weekly: boolean): HistoryPoint[] {
   const records = selectedRecords(period);
   const buckets = new Map<string, typeof records>();
   records.forEach((d, i) => {
     const key = weekly ? String(Math.floor(i / 7)) : d.date.slice(0, 7);
     buckets.set(key, [...(buckets.get(key) ?? []), d]);
   });
-  const points: HistoryPoint[] = [...buckets.values()].map((ds) => ({
+  return [...buckets.values()].map((ds) => ({
     label: weekly ? shortDate(new Date(ds[0].date)) : shortDate(new Date(ds[0].date)).split(" ")[0],
     dateLabel: `${shortDate(new Date(ds[0].date))}, ${ds[0].date.slice(0, 4)} – ${shortDate(new Date(ds[ds.length - 1].date))}, ${ds[ds.length - 1].date.slice(0, 4)}`,
     modis: Math.round(ds.reduce((s, d) => s + (d.modis ?? 0), 0) * factor),
@@ -220,19 +220,6 @@ function getSelectedHistoryCore(period: string, factor: number, weekly = false) 
       ds.reduce((s, d) => s + (d.viirs === null ? 0 : d.baselineViirs), 0) * factor,
     ),
   }));
-  const observation = getObservation(period, factor);
-  const baseline = points.reduce((s, p) => s + p.baselineModis + p.baselineViirs, 0);
-  return {
-    points,
-    current: points[points.length - 1],
-    peak: points.reduce((a, b) => (a.modis + a.viirs > b.modis + b.viirs ? a : b)),
-    total: observation.total,
-    baseline,
-    rangeLabel: observation.dateLabel,
-    referenceLabel: `${Number(period.slice(-10, -6)) - 5}–${Number(period.slice(-10, -6)) - 1}`,
-    change: baseline ? `${((observation.total / baseline - 1) * 100).toFixed(1)}%` : "N/A",
-    partial: false,
-  };
 }
 
 export function getSelectedHistory(
@@ -241,9 +228,8 @@ export function getSelectedHistory(
   weekly = false,
   sensor: SensorSelection = "ALL",
 ) {
-  const history = getSelectedHistoryCore(period, factor, weekly);
   const available = hasDemoData(sensor);
-  const points = history.points.map((point) => ({
+  const points = selectedHistoryPoints(period, factor, weekly).map((point) => ({
     ...point,
     modis: available && matchesSensor(sensor, "MODIS") ? point.modis : 0,
     viirs: available && matchesSensor(sensor, "VIIRS") ? point.viirs : 0,
@@ -253,12 +239,14 @@ export function getSelectedHistory(
   const observation = getObservation(period, factor, sensor);
   const baseline = points.reduce((s, p) => s + p.baselineModis + p.baselineViirs, 0);
   return {
-    ...history,
     points,
     current: points[points.length - 1],
     peak: points.reduce((a, b) => (a.modis + a.viirs > b.modis + b.viirs ? a : b)),
     total: observation.total,
     baseline,
     change: baseline ? `${((observation.total / baseline - 1) * 100).toFixed(1)}%` : "N/A",
+    rangeLabel: observation.dateLabel,
+    referenceLabel: `${Number(period.slice(-10, -6)) - 5}–${Number(period.slice(-10, -6)) - 1}`,
+    partial: false,
   };
 }

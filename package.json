@@ -10,6 +10,7 @@
     "test": "node --test tests/*.test.mjs",
     "api:generate": "openapi-typescript contracts/openapi.yaml -o src/shared/api/generated/schema.ts",
     "api:check": "node scripts/check-api-types.mjs",
+    "files:audit": "node scripts/audit-files.mjs",
     "preview": "vite preview",
     "format": "oxfmt src scripts tests vite.config.ts tsconfig.json package.json .oxfmtrc.json",
     "format:check": "oxfmt --check src scripts tests vite.config.ts tsconfig.json package.json .oxfmtrc.json"

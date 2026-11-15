@@ -63,12 +63,17 @@ npm test
 npm run typecheck
 npm run format:check
 npm run api:check
+npm run files:audit
 npm run build
 ```
 
 `npm run format` formats TypeScript/JavaScript and configuration files. The contract, generated types, and CSS files are preserved. No linter is configured; `format:check` checks formatting, while `typecheck` also detects unused variables and parameters.
 
 The diagnosis, changes, and verification limits are documented in [`docs/refactoring-report.md`](docs/refactoring-report.md).
+
+For a file-by-file usage inventory, optional tooling explanations, and the latest correctness fixes, see [`docs/file-audit.md`](docs/file-audit.md). Run `npm run files:audit -- --json` to inspect the current source dependency inventory.
+
+Before committing or pushing, see [`docs/version-control.md`](docs/version-control.md) for required files, optional tooling, credential exclusions, and attribution guidance.
 
 After receiving a new contract version, replace `contracts/openapi.yaml`, run `npm run api:generate`, and review any incompatibilities reported by TypeScript. The `api:check` command detects differences between the YAML contract and the versioned types.
 

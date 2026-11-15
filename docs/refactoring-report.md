@@ -1,5 +1,7 @@
 # Refactoring report — Space Monkeys Frontend
 
+This report records the earlier refactoring pass. The subsequent [file usage and correctness audit](file-audit.md) documents additional fixes, including the SVG title warnings listed below.
+
 ## 1. Diagnosis and scope
 
 The structure, scripts, imports, HTTP calls, types, and main components were inspected before extraction. The baseline passed TypeScript checks, 63 tests, the build, and contract verification. Additional unused-code checks found an unused state setter and an unnecessary navigation index.

@@ -19,6 +19,7 @@ import {
 import mapData from "../demo/map-data.json";
 import {
   describeMapMarker,
+  mapCenterForRegion,
   panToMapPosition,
   placeHotspotTooltip,
   type MapLocationSelection,
@@ -100,10 +101,10 @@ export default function FireMap({
     setSelected(null);
     setDetailsOpen(false);
     setFocusedMarkerIndex(null);
-  }, [region]);
+  }, [region, anomalyPreview]);
   useEffect(() => {
     if (!focusRequest) return;
-    const center = region === "South America" ? ([337, 300] as const) : ([500, 225] as const);
+    const center = mapCenterForRegion(region);
     setZoom(focusRequest.zoom);
     setPan(
       panToMapPosition(
@@ -122,16 +123,7 @@ export default function FireMap({
     setFocusedMarkerIndex(null);
   }, [period, sensorFilter]);
   useEffect(() => setTooltip(null), [region, period, sensorFilter, zoom, pan, detailsOpen]);
-  const focus: Record<string, [number, number]> = {
-    Global: [500, 225],
-    "South America": [337, 300],
-    "North America": [220, 140],
-    Africa: [555, 270],
-    Europe: [535, 120],
-    Asia: [780, 150],
-    Oceania: [890, 340],
-  };
-  const center = focus[region] || focus.Global;
+  const center = mapCenterForRegion(region);
   const scale = zoom * (region === "Global" ? 1 : 1.7);
   const visibleMarkerIndices = useMemo(
     () =>

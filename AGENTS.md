@@ -24,6 +24,7 @@ This is the canonical project structure. Start with task-relevant files below. O
 - `src/features/` - History, live, system, map, sensors, and isolated prevention demo
 - `contracts/openapi.yaml` - Backend contract; regenerate schemas with `npm run api:generate`
 - `docs/backend-integration.md` - API responsibilities, scientific conventions and integration limits
+- `docs/file-audit.md` - File usage inventory, optional tooling and correctness fixes
 - `index.html` - Vite HTML shell containing the `#root` element and loading `src/main.tsx`
 - `package.json` - Project dependencies and the Vite build, development, preview, and formatting scripts
 - `vite.config.ts` - Vite configuration with React, Tailwind CSS v4, and Figma Make plugins plus the `@` alias for `src`
@@ -36,7 +37,7 @@ This is the canonical project structure. Start with task-relevant files below. O
 - Build tooling: Vite 8, TypeScript 5.7, and `@vitejs/plugin-react`
 - Formatting: oxfmt
 
-Run `npm run typecheck`, `npm test`, `npm run api:check`, `npm run format:check`, and `npm run build` after refactoring. No linter is configured. Keep the explicit stylesheet import order in `src/main.tsx` and the lazy calendar entrypoint; it preserves the existing cascade. Do not format generated schemas or change CSS solely for code cleanup.
+Run `npm run typecheck`, `npm test`, `npm run api:check`, `npm run files:audit`, `npm run format:check`, and `npm run build` after refactoring. No linter is configured. Keep the explicit stylesheet import order in `src/main.tsx` and the lazy calendar entrypoint; it preserves the existing cascade. Do not format generated schemas or change CSS solely for code cleanup.
 
 ## Styling
 

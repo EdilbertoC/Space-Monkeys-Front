@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
   describeMapMarker,
+  mapCenterForRegion,
   panToMapPosition,
   placeHotspotTooltip,
 } from "../src/features/map/model/map-location.ts";
@@ -10,6 +11,13 @@ import {
 const { markers } = JSON.parse(
   readFileSync(new URL("../src/features/map/demo/map-data.json", import.meta.url), "utf8"),
 );
+
+test("regional focus uses the actual viewport center and unknown regions fall back to Global", () => {
+  const position = { x: 400, y: 150 };
+  assert.deepEqual(panToMapPosition(position, mapCenterForRegion("Europe"), 2), { x: 270, y: -60 });
+  assert.deepEqual(panToMapPosition(position, mapCenterForRegion("Asia"), 2), { x: 760, y: 0 });
+  assert.deepEqual(mapCenterForRegion("Unknown"), mapCenterForRegion("Global"));
+});
 
 test("location details preserve every original spatial sample and sensor", () => {
   const snapshot = JSON.stringify(markers);
