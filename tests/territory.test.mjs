@@ -2,16 +2,19 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  compareAt,
-  decisionYears,
+  comparePeriods,
+  defaultPeriods,
   driftYear,
   indexSeries,
   intervalRuns,
   mannWhitneyP,
   median,
-  splitAt,
+  monthsLabel,
+  parseRange,
   theilSen,
   toCsv,
+  windowMonths,
+  windowTotals,
 } from "../src/features/territory/model/territory.ts";
 
 const pts = (values, first = 2003) => values.map((value, i) => ({ year: first + i, value }));
@@ -29,24 +32,61 @@ test("theilSen recovers an exact line and needs three years", () => {
   assert.equal(theilSen(pts([1, 2])), null);
 });
 
-test("a decision year goes to the after side, and each side needs three years", () => {
+test("each period needs three years and periods must not overlap", () => {
   const series = pts([1, 2, 3, 4, 5, 6, 7, 8]);
-  const { before, after } = splitAt(series, 2006);
-  assert.deepEqual(
-    before.map((p) => p.year),
-    [2003, 2004, 2005],
+  const short = comparePeriods(series, { from: 2003, to: 2004 }, { from: 2006, to: 2010 });
+  assert.equal(short.enough, false);
+  assert.equal(short.p, null);
+  const shared = comparePeriods(series, { from: 2003, to: 2006 }, { from: 2006, to: 2010 });
+  assert.equal(shared.enough, false);
+  assert.equal(
+    comparePeriods(series, { from: 2003, to: 2005 }, { from: 2006, to: 2010 }).enough,
+    true,
   );
-  assert.equal(after[0].year, 2006);
-  assert.deepEqual(decisionYears(series), [2006, 2007, 2008]);
-  assert.equal(compareAt(series, 2004).enough, false);
-  assert.equal(compareAt(series, 2004).p, null);
 });
 
-test("compareAt reports the change of the median year", () => {
-  const cmp = compareAt(pts([100, 120, 110, 50, 60, 55]), 2006);
-  assert.equal(cmp.before.median, 110);
-  assert.equal(cmp.after.median, 55);
+test("comparePeriods reports the change of the median year from A to B", () => {
+  const series = pts([100, 120, 110, 999, 50, 60, 55]);
+  // 2006 (999) is in neither period, so it does not count.
+  const cmp = comparePeriods(series, { from: 2003, to: 2005 }, { from: 2007, to: 2009 });
+  assert.equal(cmp.a.median, 110);
+  assert.equal(cmp.b.median, 55);
   assert.equal(cmp.changePct, -50);
+});
+
+test("defaultPeriods splits the years in halves and needs enough years", () => {
+  assert.deepEqual(defaultPeriods([2003, 2004, 2005, 2006, 2007, 2008, 2009]), {
+    a: { from: 2003, to: 2005 },
+    b: { from: 2006, to: 2009 },
+  });
+  assert.equal(defaultPeriods([2003, 2004, 2005, 2006, 2007]), null);
+  assert.deepEqual(parseRange("2003-2011"), { from: 2003, to: 2011 });
+  assert.equal(parseRange("2011-2003"), null);
+});
+
+test("windowTotals sums the window months and skips incomplete years", () => {
+  const month = (y, m, value) => ({ start: `${y}-${String(m).padStart(2, "0")}-01`, value });
+  const buckets = [
+    month(2003, 7, 1),
+    month(2003, 8, 2),
+    month(2003, 9, 3),
+    month(2004, 7, 10),
+    month(2004, 8, null),
+    month(2004, 9, 30),
+    month(2004, 11, 5),
+    month(2004, 12, 6),
+    month(2005, 1, 7),
+  ];
+  assert.deepEqual(windowTotals(buckets, { from: 7, to: 9 }, new Set([2003, 2004])), [
+    { year: 2003, value: 6 },
+  ]);
+  // Nov–Jan wraps: it counts for the year it ends in.
+  assert.deepEqual(windowTotals(buckets, { from: 11, to: 1 }, new Set([2005])), [
+    { year: 2005, value: 18 },
+  ]);
+  assert.deepEqual(windowMonths({ from: 11, to: 2 }), [11, 12, 1, 2]);
+  assert.equal(monthsLabel({ from: 1, to: 12 }), "whole year");
+  assert.equal(monthsLabel({ from: 7, to: 10 }), "Jul–Oct");
 });
 
 test("mannWhitneyP matches a worked example and is symmetric", () => {

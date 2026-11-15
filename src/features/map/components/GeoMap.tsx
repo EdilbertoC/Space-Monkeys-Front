@@ -22,6 +22,8 @@ import {
   MAP_HEIGHT,
   MAP_WIDTH,
   viewBoxFor,
+  xToLon,
+  yToLat,
   type Bounds,
 } from "../../../shared/geo/projection";
 
@@ -70,13 +72,24 @@ export function GeoMap({
   children,
   legend,
   large = false,
+  drawing = false,
+  onBoxDrawn,
+  selection = null,
 }: {
   bounds?: Bounds;
   label: string;
   children?: ReactNode;
   legend?: ReactNode;
   large?: boolean;
+  /** While true, dragging draws a lon/lat box (reported through onBoxDrawn) instead of panning. */
+  drawing?: boolean;
+  onBoxDrawn?: (box: Bounds) => void;
+  /** Outline of the area being analysed. */
+  selection?: Bounds | null;
 }) {
+  const [sketch, setSketch] = useState<{ x0: number; y0: number; x1: number; y1: number } | null>(
+    null,
+  );
   const base = viewBoxFor(bounds);
   const baseKey = `${base.x},${base.y},${base.width},${base.height}`;
   const [view, setView] = useState<ViewBox>(base);
@@ -127,10 +140,20 @@ export function GeoMap({
     const ctm = e.currentTarget.getScreenCTM();
     if (!ctm) return;
     e.currentTarget.setPointerCapture(e.pointerId);
+    if (drawing) {
+      const p = toMap(e.currentTarget, e.clientX, e.clientY);
+      if (p) setSketch({ x0: p.x, y0: p.y, x1: p.x, y1: p.y });
+      return;
+    }
     drag.current = { x: e.clientX, y: e.clientY, view: viewRef.current, unitsPerPx: 1 / ctm.a };
     setDragging(true);
   };
   const onPointerMove = (e: PointerEvent<SVGSVGElement>) => {
+    if (sketch) {
+      const p = toMap(e.currentTarget, e.clientX, e.clientY);
+      if (p) setSketch({ ...sketch, x1: p.x, y1: p.y });
+      return;
+    }
     const d = drag.current;
     if (!d) return;
     setView({
@@ -140,6 +163,17 @@ export function GeoMap({
     });
   };
   const endDrag = () => {
+    if (sketch) {
+      // Snap outward to the 0.1° grid of the record; ignore clicks and tiny drags.
+      const snap = (v: number, up: boolean) => (up ? Math.ceil(v * 10) : Math.floor(v * 10)) / 10;
+      const west = snap(xToLon(Math.min(sketch.x0, sketch.x1)), false);
+      const east = snap(xToLon(Math.max(sketch.x0, sketch.x1)), true);
+      const south = snap(yToLat(Math.max(sketch.y0, sketch.y1)), false);
+      const north = snap(yToLat(Math.min(sketch.y0, sketch.y1)), true);
+      setSketch(null);
+      if (east - west >= 0.2 && north - south >= 0.2) onBoxDrawn?.([west, south, east, north]);
+      return;
+    }
     drag.current = null;
     setDragging(false);
   };
@@ -164,7 +198,7 @@ export function GeoMap({
     <div className={`geo-map ${large ? "large" : ""}`}>
       <svg
         ref={svgRef}
-        className={dragging ? "dragging" : ""}
+        className={drawing ? "drawing" : dragging ? "dragging" : ""}
         viewBox={`${shown.x} ${shown.y} ${shown.width} ${shown.height}`}
         preserveAspectRatio="xMidYMid meet"
         role="img"
@@ -174,6 +208,7 @@ export function GeoMap({
         onPointerUp={endDrag}
         onPointerCancel={endDrag}
         onDoubleClick={(e) => {
+          if (drawing) return;
           const p = toMap(e.currentTarget, e.clientX, e.clientY);
           zoomAt(BUTTON_STEP, p?.x, p?.y);
         }}
@@ -196,6 +231,24 @@ export function GeoMap({
         )}
         <GeoGraticule vb={shown} px={px} />
         <MapPixel.Provider value={px}>{children}</MapPixel.Provider>
+        {selection && (
+          <rect
+            className="geo-selection"
+            x={lonToX(selection[0])}
+            y={latToY(selection[3])}
+            width={lonToX(selection[2]) - lonToX(selection[0])}
+            height={latToY(selection[1]) - latToY(selection[3])}
+          />
+        )}
+        {sketch && (
+          <rect
+            className="geo-sketch"
+            x={Math.min(sketch.x0, sketch.x1)}
+            y={Math.min(sketch.y0, sketch.y1)}
+            width={Math.abs(sketch.x1 - sketch.x0)}
+            height={Math.abs(sketch.y1 - sketch.y0)}
+          />
+        )}
       </svg>
       <div className="geo-zoom" role="group" aria-label="Map zoom">
         <button

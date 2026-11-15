@@ -2,7 +2,7 @@
 // Building blocks shared by the history pages: filters, KPI cards, charts and API states.
 // Every number comes from the /history API; failures are shown, never replaced.
 import "../styles/history-workspace.css";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { ApiError } from "../../../shared/api/http";
 import type { Biome, Schemas, Series } from "../../../shared/api/types";
 import type { ApiResource } from "../../../shared/api/useApiResource";
@@ -44,6 +44,13 @@ export function AreaPicker({
     north: "-17.5",
   });
   const [bboxError, setBboxError] = useState<string | null>(null);
+  // A box set elsewhere (drawn on the map, a shared link) shows up in the fields.
+  const box = value.kind === "bbox" ? value.bbox : null;
+  useEffect(() => {
+    if (!box) return;
+    const [west, south, east, north] = box.split(",");
+    if (west && south && east && north) setDraft({ west, south, east, north });
+  }, [box]);
   const current =
     value.kind === "biome" ? value.biome : value.kind === "country" ? "__brazil" : "__bbox";
 

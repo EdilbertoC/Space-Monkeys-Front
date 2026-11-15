@@ -1,31 +1,70 @@
-/* Territory page: trend, before/after a decision, reference area. */
-.territory .tr-label input {
-  width: 190px;
-  padding: 6px 8px;
-  border: var(--border-thin) solid var(--border);
-  border-radius: var(--radius-control);
-  background: var(--surface-inset);
-  color: var(--text-primary);
+/* Territory page: trend, period A vs period B, reference area, area on the map. */
+.territory {
+  --period-a: #7aa2ff;
+  --period-b: var(--orange);
+}
+.territory .tr-range {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.territory .tr-range .orbit-select {
+  min-width: 92px;
+}
+.territory .tr-dash {
+  color: var(--text-subtle);
   font-size: var(--text-small);
-  text-transform: none;
-  letter-spacing: 0;
 }
-.territory .tr-label input:focus {
-  outline: none;
-  border-color: var(--orange);
+.territory .tr-chip {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  margin-right: 2px;
+  border-radius: 2px;
+  vertical-align: -1px;
 }
-.territory .tr-after {
-  fill: var(--orange);
-  opacity: 0.07;
+.territory .tr-chip.a {
+  background: var(--period-a);
 }
-.territory .tr-decision {
-  stroke: var(--orange);
-  stroke-width: 1.2;
-  stroke-dasharray: 3 3;
+.territory .tr-chip.b {
+  background: var(--period-b);
 }
-.territory .tr-decision-label {
-  fill: var(--orange);
+.territory .tr-period-band.a {
+  fill: var(--period-a);
+  opacity: 0.08;
+}
+.territory .tr-period-band.b {
+  fill: var(--period-b);
+  opacity: 0.08;
+}
+.territory .tr-period-label {
   font-size: 9px;
+  font-weight: 600;
+}
+.territory .tr-period-label.a {
+  fill: var(--period-a);
+}
+.territory .tr-period-label.b {
+  fill: var(--period-b);
+}
+.territory .tr-median.a {
+  stroke: var(--period-a);
+}
+.territory .tr-median.b {
+  stroke: var(--period-b);
+}
+.territory .hw-swatch.line.tr-median.a {
+  border-color: var(--period-a);
+}
+.territory .hw-swatch.line.tr-median.b {
+  border-color: var(--period-b);
+}
+.territory .tr-map-panel .panel-actions .hw-button.active {
+  border-color: var(--orange);
+  color: var(--orange);
+}
+.territory .tr-map-panel .geo-map {
+  margin-bottom: var(--space-lg);
 }
 .territory .tr-band {
   fill: var(--text-primary);
@@ -115,4 +154,10 @@
   height: 10px;
   background: var(--sensor-modis);
   opacity: 0.35;
+}
+.territory .geo-context .geo-cell {
+  opacity: 0.28;
+}
+.territory .tr-map-panel .panel-actions .hw-button {
+  white-space: nowrap;
 }

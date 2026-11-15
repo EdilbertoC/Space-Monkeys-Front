@@ -162,3 +162,21 @@
 .geo-zoom .geo-zoom-reset {
   font-size: 15px;
 }
+.geo-map > svg.drawing {
+  cursor: crosshair;
+}
+.geo-selection {
+  fill: none;
+  stroke: #ffffff;
+  stroke-width: 1.5px;
+  stroke-dasharray: 5 4;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+.geo-sketch {
+  fill: #ffffff1a;
+  stroke: #ffffff;
+  stroke-width: 1.5px;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}

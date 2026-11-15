@@ -1,7 +1,9 @@
 // SI-assisted: written with Claude (Anthropic), reviewed by the Space Monkeys team. See README.
-// Territory: is fire activity in an area going up or down over the years, and did it change
-// after a decision? Yearly harmonized fire cell-days, the Theil–Sen trend, a before/after
-// comparison and a reference area on one axis. It shows association, never cause.
+// Territory: is fire activity in an area going up or down over the years, and how does one
+// period compare with another? Yearly harmonized fire cell-days (optionally only some
+// months of each year), the Theil–Sen trend, a period A vs period B comparison and a
+// reference area on one axis. The area can be drawn on the map. It shows association,
+// never cause.
 import { useEffect, useMemo, useState } from "react";
 import { historyApi, http } from "../../../app/api";
 import { parseArea, readParam, writeParams } from "../../../app/url-state";
@@ -21,19 +23,32 @@ import {
   type TrendResource,
 } from "../../history/components/HistoryParts";
 import {
-  compareAt,
-  decisionYears,
+  ALL_MONTHS,
+  comparePeriods,
+  defaultPeriods,
   driftYear,
+  inRange,
   indexSeries,
   intervalRuns,
+  isAllYear,
   median,
-  splitAt,
+  MIN_SEGMENT_YEARS,
+  MONTHS,
+  monthsLabel,
+  overlaps,
+  parseRange,
+  rangeLabel,
   summarize,
   theilSen,
   toCsv,
+  windowTotals,
   type Comparison,
+  type MonthBucket,
+  type MonthRange,
   type YearPoint,
+  type YearRange,
 } from "../model/territory";
+import TerritoryMap from "./TerritoryMap";
 
 import "../styles/territory.css";
 
@@ -60,10 +75,40 @@ function points(trend: TrendResource): YearPoint[] {
   );
 }
 
+function parseMonths(text: string | null): MonthRange {
+  const m = /^(\d{1,2})-(\d{1,2})$/.exec(text ?? "");
+  const from = Number(m?.[1]);
+  const to = Number(m?.[2]);
+  return from >= 1 && from <= 12 && to >= 1 && to <= 12 ? { from, to } : ALL_MONTHS;
+}
+
 const signed = (value: number, digits = 0) =>
   `${value < 0 ? "−" : "+"}${Math.abs(value).toLocaleString("en-US", {
     maximumFractionDigits: digits,
   })}`;
+
+/** Monthly buckets for one area over the record, only when a month window is chosen. */
+function useWindowBuckets(area: AreaChoice | null, from: number | null, to: number | null) {
+  const cal = useApi(
+    area && from !== null && to !== null
+      ? (signal) =>
+          historyApi.getCalendar(
+            {
+              ...areaSelector(area),
+              // One year earlier so a window that wraps the new year has its first months.
+              start: `${from - 1}-01-01`,
+              end: `${to}-12-31`,
+              granularity: "month",
+            },
+            { signal },
+          )
+      : null,
+    [area ? areaKey(area) : NONE, from, to],
+  );
+  const buckets: MonthBucket[] | null =
+    cal.data?.buckets.map((b) => ({ start: b.start, value: b.harmonized?.value ?? null })) ?? null;
+  return { cal, buckets };
+}
 
 export default function TerritoryPage({
   meta,
@@ -74,25 +119,14 @@ export default function TerritoryPage({
   area: AreaChoice;
   onAreaChange: (area: AreaChoice) => void;
 }) {
-  const [decision, setDecision] = useState<number | null>(() => {
-    const year = Number(readParam("decision"));
-    return Number.isInteger(year) && year > 2000 ? year : null;
-  });
-  const [decisionLabel, setDecisionLabel] = useState(() => readParam("label")?.slice(0, 40) ?? "");
+  const [pickedA, setPickedA] = useState<YearRange | null>(() => parseRange(readParam("a")));
+  const [pickedB, setPickedB] = useState<YearRange | null>(() => parseRange(readParam("b")));
+  const [months, setMonths] = useState<MonthRange>(() => parseMonths(readParam("months")));
   const [referenceKey, setReferenceKey] = useState(() => {
     const key = readParam("ref");
     return key !== null && (key === NONE || referenceArea(key)) ? key : BRAZIL;
   });
   const [copied, setCopied] = useState(false);
-
-  useEffect(() => {
-    writeParams({
-      ref: referenceKey === BRAZIL ? null : referenceKey,
-      decision: decision === null ? null : String(decision),
-      label: decisionLabel.trim() || null,
-    });
-    return () => writeParams({ ref: null, decision: null, label: null });
-  }, [referenceKey, decision, decisionLabel]);
 
   const key = areaKey(area);
   const reference = referenceArea(referenceKey);
@@ -111,16 +145,59 @@ export default function TerritoryPage({
     [refArea ? areaKey(refArea) : NONE],
   );
 
-  const own = useMemo(() => points(territory), [territory]);
-  const ref = useMemo(() => (refArea ? points(refTrend) : []), [refTrend, refArea]);
-  const years = useMemo(() => decisionYears(own), [own]);
-  // A decision year that no longer leaves three years per side (area changed) is dropped.
-  const effective = decision !== null && years.includes(decision) ? decision : null;
+  // Complete years of the whole-year series decide which years exist at all.
+  const whole = useMemo(() => points(territory), [territory]);
+  const refWhole = useMemo(() => (refArea ? points(refTrend) : []), [refTrend, refArea]);
+  const years = useMemo(() => whole.map((p) => p.year), [whole]);
+  const first = years[0] ?? null;
+  const last = years.at(-1) ?? null;
 
-  // With a reference both series share one axis: 100 is the median year before the
-  // decision (or the median year overall when no decision is set).
+  const windowed = !isAllYear(months);
+  const ownCal = useWindowBuckets(windowed ? area : null, first, last);
+  const refCal = useWindowBuckets(windowed ? refArea : null, first, last);
+  const own = useMemo(
+    () =>
+      windowed
+        ? ownCal.buckets
+          ? windowTotals(ownCal.buckets, months, new Set(years))
+          : []
+        : whole,
+    [windowed, ownCal.buckets, months, years, whole],
+  );
+  const ref = useMemo(() => {
+    if (!refArea) return [];
+    if (!windowed) return refWhole;
+    return refCal.buckets
+      ? windowTotals(refCal.buckets, months, new Set(refWhole.map((p) => p.year)))
+      : [];
+  }, [refArea, windowed, refWhole, refCal.buckets, months]);
+  const loading = territory.status !== "success" || (windowed && ownCal.cal.status === "loading");
+  const seriesError = territory.error ?? (windowed ? ownCal.cal.error : null) ?? undefined;
+
+  // A chosen period that falls outside this area's years gives way to the default split.
+  const fits = (r: YearRange | null): r is YearRange =>
+    r !== null && first !== null && last !== null && r.from >= first && r.to <= last;
+  const defaults = defaultPeriods(years);
+  const periodA = fits(pickedA) ? pickedA : (defaults?.a ?? null);
+  const periodB = fits(pickedB) ? pickedB : (defaults?.b ?? null);
+  const periods = periodA && periodB ? { a: periodA, b: periodB } : null;
+
+  useEffect(() => {
+    writeParams({
+      ref: referenceKey === BRAZIL ? null : referenceKey,
+      a: pickedA ? `${pickedA.from}-${pickedA.to}` : null,
+      b: pickedB ? `${pickedB.from}-${pickedB.to}` : null,
+      months: windowed ? `${months.from}-${months.to}` : null,
+      decision: null,
+      label: null,
+    });
+    return () => writeParams({ ref: null, a: null, b: null, months: null });
+  }, [referenceKey, pickedA, pickedB, months, windowed]);
+
+  // With a reference both series share one axis: 100 is the median year of period A (or the
+  // median year overall when there are no periods).
   const wantsIndex = refArea !== null && ref.length > 0;
-  const baseYears = effective !== null ? (y: number) => y < effective : undefined;
+  const baseYears = periodA ? (y: number) => y >= periodA.from && y <= periodA.to : undefined;
   const indexedOwn = wantsIndex ? indexSeries(own, baseYears) : [];
   const indexedRef = wantsIndex ? indexSeries(ref, baseYears) : [];
   // Indexing divides by a median, so it needs fire in the base years of both series.
@@ -129,15 +206,17 @@ export default function TerritoryPage({
   const shownOwn = indexed ? indexedOwn : own;
   const shownRef = indexed ? indexedRef : [];
 
-  const ownCmp = effective !== null ? compareAt(own, effective) : null;
-  const refCmp = effective !== null && indexed ? compareAt(ref, effective) : null;
+  const ownCmp = periods ? comparePeriods(own, periods.a, periods.b) : null;
+  const refCmp = periods && indexed ? comparePeriods(ref, periods.a, periods.b) : null;
 
   const t = territory.data?.data;
+  const localTrend = theilSen(own);
   const drift = driftYear(meta.harmonization.switch_date);
-  const trendLine = indexed ? null : theilSen(own);
+  const trendLine = indexed ? null : localTrend;
 
   const exportCsv = () => {
     const refByYear = new Map(ref.map((p) => [p.year, p.value]));
+    const suffix = windowed ? `_${slug(monthsLabel(months))}` : "";
     const csv = toCsv(
       own.map((p) => ({
         year: p.year,
@@ -146,18 +225,26 @@ export default function TerritoryPage({
         high: p.high,
         reference: refByYear.get(p.year),
       })),
-      slug(areaLabel(area)),
-      indexed && refArea ? slug(areaLabel(refArea)) : null,
+      slug(areaLabel(area)) + suffix,
+      indexed && refArea ? slug(areaLabel(refArea)) + suffix : null,
     );
     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
     const link = document.createElement("a");
     link.href = url;
-    link.download = `fire-cell-days-${slug(areaLabel(area))}.csv`;
+    link.download = `fire-cell-days-${slug(areaLabel(area))}${suffix}.csv`;
     link.click();
     URL.revokeObjectURL(url);
   };
   const copyCall = async () => {
-    const call = http.url("/history/trend", { ...areaSelector(area), series: "harmonized" });
+    const call =
+      windowed && first !== null && last !== null
+        ? http.url("/history/calendar", {
+            ...areaSelector(area),
+            start: `${first - 1}-01-01`,
+            end: `${last}-12-31`,
+            granularity: "month",
+          })
+        : http.url("/history/trend", { ...areaSelector(area), series: "harmonized" });
     try {
       await navigator.clipboard.writeText(call);
       setCopied(true);
@@ -189,109 +276,157 @@ export default function TerritoryPage({
               ))}
             </SelectControl>
           </div>
+          <PeriodField
+            name="Period A"
+            years={years}
+            value={periodA}
+            onChange={setPickedA}
+            tone="a"
+          />
+          <PeriodField
+            name="Period B"
+            years={years}
+            value={periodB}
+            onChange={setPickedB}
+            tone="b"
+          />
           <div className="hw-field">
-            <span>Decision took effect in</span>
-            <SelectControl
-              label="Decision year"
-              icon="calendar"
-              value={effective === null ? NONE : String(effective)}
-              onChange={(v) => setDecision(v === NONE ? null : Number(v))}
-              disabled={years.length === 0}
-            >
-              <option value={NONE}>No decision marked</option>
-              {years.map((y) => (
-                <option key={y} value={String(y)}>
-                  {String(y)}
-                </option>
-              ))}
-            </SelectControl>
+            <span>Months of each year</span>
+            <div className="tr-range">
+              <SelectControl
+                label="First month"
+                icon="calendar"
+                value={String(months.from)}
+                onChange={(v) => setMonths({ ...months, from: Number(v) })}
+              >
+                {MONTHS.map((m, i) => (
+                  <option key={m} value={String(i + 1)}>
+                    {m}
+                  </option>
+                ))}
+              </SelectControl>
+              <span className="tr-dash">to</span>
+              <SelectControl
+                label="Last month"
+                icon="calendar"
+                value={String(months.to)}
+                onChange={(v) => setMonths({ ...months, to: Number(v) })}
+              >
+                {MONTHS.map((m, i) => (
+                  <option key={m} value={String(i + 1)}>
+                    {m}
+                  </option>
+                ))}
+              </SelectControl>
+            </div>
           </div>
-          <label className="hw-field tr-label">
-            <span>Decision label (optional)</span>
-            <input
-              type="text"
-              value={decisionLabel}
-              maxLength={40}
-              placeholder="e.g. new fire-control plan"
-              onChange={(e) => setDecisionLabel(e.target.value)}
-            />
-          </label>
         </div>
+        {periods && overlaps(periods.a, periods.b) && (
+          <p className="hw-note warn hw-pad">
+            <Icon name="info" size={13} /> Periods A and B overlap. Pick periods that do not share
+            years to compare them.
+          </p>
+        )}
+        {windowed && months.from > months.to && (
+          <p className="hw-note hw-pad">
+            <Icon name="info" size={13} /> {monthsLabel(months)} crosses the new year: each window
+            counts for the year it ends in.
+          </p>
+        )}
       </section>
 
-      {t && own.length > 0 && (
+      {own.length > 0 && (
         <Finding
           place={placeName(area)}
+          window={windowed ? monthsLabel(months) : null}
           firstYear={own[0]!.year}
-          slope={t.slope_per_year}
-          significant={t.significant}
-          decision={effective}
+          slope={t?.slope_per_year ?? null}
+          significant={t?.significant ?? false}
+          periods={periods}
           own={ownCmp}
           reference={refCmp}
           refPlace={refArea && placeName(refArea)}
         />
       )}
 
+      <TerritoryMap meta={meta} area={area} periods={periods} onAreaChange={onAreaChange} />
+
       <div className="hw-kpis hw-kpis-2">
-        <Card title={`Trend since ${own[0]?.year ?? "…"}`} state={territory}>
-          {t && (
-            <>
-              <strong className="hw-big">
-                {signed(t.slope_per_year)}
-                <em> fire cell-days / year</em>
-              </strong>
-              <small>
-                Theil–Sen on {own.length} complete years, 95% CI{" "}
-                {formatValue(noNegativeZero(t.ci95[0]))} to {formatValue(noNegativeZero(t.ci95[1]))}
-                .
-              </small>
-            </>
-          )}
-        </Card>
         <Card
           title={
-            effective === null ? "Before and after a decision" : `Before and after ${effective}`
+            periods
+              ? `Period B (${rangeLabel(periods.b)}) vs period A (${rangeLabel(periods.a)})`
+              : "Period B vs period A"
           }
           state={territory}
         >
-          {ownCmp === null ? (
+          {ownCmp === null || !periods ? (
             <small>
-              Choose the year a decision took effect to compare the years before and after it.
+              Pick two periods with at least {MIN_SEGMENT_YEARS} complete years each to compare
+              them.
             </small>
           ) : (
-            <BeforeAfterSummary
+            <PeriodSummary
               own={ownCmp}
               ref={refCmp}
               refName={refArea && areaLabel(refArea)}
               drift={drift}
+              periods={periods}
             />
           )}
+        </Card>
+        <Card title={`Trend since ${own[0]?.year ?? "…"}`} state={territory}>
+          {windowed
+            ? localTrend && (
+                <>
+                  <strong className="hw-big">
+                    {signed(localTrend.slope)}
+                    <em> fire cell-days / year</em>
+                  </strong>
+                  <small>
+                    Theil–Sen on {own.length} complete years, {monthsLabel(months)} only. No
+                    confidence interval is computed for a month window.
+                  </small>
+                </>
+              )
+            : t && (
+                <>
+                  <strong className="hw-big">
+                    {signed(t.slope_per_year)}
+                    <em> fire cell-days / year</em>
+                  </strong>
+                  <small>
+                    Theil–Sen on {own.length} complete years, 95% CI{" "}
+                    {formatValue(noNegativeZero(t.ci95[0]))} to{" "}
+                    {formatValue(noNegativeZero(t.ci95[1]))}.
+                  </small>
+                </>
+              )}
         </Card>
       </div>
 
       <section className="panel hw-trend-panel">
         <PanelTitle
-          title={`Yearly fire cell-days · ${areaLabel(area)}`}
+          title={`Yearly fire cell-days · ${areaLabel(area)}${windowed ? ` · ${monthsLabel(months)}` : ""}`}
           subtitle={
             indexed
               ? "Both series are indexed: 100 is the median year " +
-                (effective === null ? "of the record." : `before ${effective}.`)
-              : "Harmonized, MODIS-equivalent. One cell-day is a 0.1° cell with at least one detection on one UTC day."
+                (periodA ? `of period A (${rangeLabel(periodA)}).` : "of the record.")
+              : `Harmonized, MODIS-equivalent${windowed ? `, summed over ${monthsLabel(months)} of each year` : ""}. One cell-day is a 0.1° cell with at least one detection on one UTC day.`
           }
         />
-        {territory.status === "success" && own.length > 0 ? (
+        {!loading && own.length > 0 ? (
           <TerritoryChart
             own={shownOwn}
             ref={shownRef}
             indexed={indexed}
             refName={refArea ? areaLabel(refArea) : null}
-            decision={effective}
-            decisionLabel={decisionLabel.trim()}
+            periods={periods}
             line={trendLine}
             drift={drift}
           />
         ) : (
-          <PanelState error={territory.error ?? undefined} />
+          <PanelState error={seriesError} />
         )}
         {territory.data?.fallback && (
           <p className="hw-note warn hw-pad">
@@ -301,12 +436,12 @@ export default function TerritoryPage({
         )}
         {cannotIndex && (
           <p className="hw-note warn hw-pad">
-            <Icon name="info" size={13} /> This area has no fire cell-days in the median year of the
-            base period, so it cannot be put on one axis with the reference. The chart shows the
+            <Icon name="info" size={13} /> This area has no fire cell-days in the median year of
+            period A, so it cannot be put on one axis with the reference. The chart shows the
             territory alone.
           </p>
         )}
-        {refArea && refTrend.status === "error" && (
+        {refArea && (refTrend.status === "error" || refCal.cal.status === "error") && (
           <p className="hw-note warn hw-pad">
             <Icon name="info" size={13} /> The reference series could not be loaded, so the chart
             shows the territory alone.
@@ -327,31 +462,91 @@ export default function TerritoryPage({
         <ul className="hw-facts">
           <li>
             This shows association, not cause. Fire also follows drought and heat, and this page has
-            no climate data, so a drop after a decision is a lead to investigate, not proof the
-            decision worked.
+            no climate data, so a difference between two periods is a lead to investigate, not proof
+            of what caused it.
           </li>
           <li>
             The unit is fire cell-days: not burned area, not fire intensity and not a count of
             fires. Only complete calendar years are used, starting in 2003 (Aqua joined Terra in
-            mid-2002).
+            mid-2002). With a month window, each year is the sum of those months only.
           </li>
           <li>
-            The before/after p-value is a Mann–Whitney test on yearly totals. Years are not
-            independent (dry spells last several years), so read it as a guide, not a verdict.
+            The comparison is the median year of period B against the median year of period A, with
+            a Mann–Whitney test on the yearly totals. Years are not independent (dry spells last
+            several years), so read the p-value as a guide, not a verdict.
           </li>
           <li>
             From 2022 the MODIS orbits drift, and until the harmonized series switches to the VIIRS
             estimate it still uses observed MODIS for those years (shaded on the chart). Over Brazil
             the methodology finds that MODIS 8–15% above the estimate, so recent years can read high
-            and a before/after comparison reaching them leans toward an increase.
+            and a period reaching them leans toward an increase.
           </li>
           <li>
-            Years drawn as hollow dots are partly estimated from VIIRS after MODIS, with a 90% band.
-            The trend is the figure most sensitive to harmonization errors; the method and its test
-            scores are on Data Sources.
+            Years drawn as hollow dots are partly estimated from VIIRS after MODIS, with a 90% band
+            (whole year only). The trend is the figure most sensitive to harmonization errors; the
+            method and its test scores are on Data Sources.
           </li>
         </ul>
       </section>
+    </div>
+  );
+}
+
+/** Two year selects (first and last year) for one period. */
+function PeriodField({
+  name,
+  years,
+  value,
+  onChange,
+  tone,
+}: {
+  name: string;
+  years: readonly number[];
+  value: YearRange | null;
+  onChange: (r: YearRange) => void;
+  tone: "a" | "b";
+}) {
+  const disabled = years.length === 0 || value === null;
+  return (
+    <div className={`hw-field tr-period ${tone}`}>
+      <span>
+        <i className={`tr-chip ${tone}`} /> {name}
+      </span>
+      <div className="tr-range">
+        <SelectControl
+          label={`${name} first year`}
+          icon="calendar"
+          value={value ? String(value.from) : ""}
+          disabled={disabled}
+          onChange={(v) => {
+            const from = Number(v);
+            onChange({ from, to: value && value.to >= from ? value.to : from });
+          }}
+        >
+          {years.map((y) => (
+            <option key={y} value={String(y)}>
+              {String(y)}
+            </option>
+          ))}
+        </SelectControl>
+        <span className="tr-dash">to</span>
+        <SelectControl
+          label={`${name} last year`}
+          icon="calendar"
+          value={value ? String(value.to) : ""}
+          disabled={disabled}
+          onChange={(v) => {
+            const to = Number(v);
+            onChange({ from: value && value.from <= to ? value.from : to, to });
+          }}
+        >
+          {years.map((y) => (
+            <option key={y} value={String(y)} disabled={value !== null && y < value.from}>
+              {String(y)}
+            </option>
+          ))}
+        </SelectControl>
+      </div>
     </div>
   );
 }
@@ -371,51 +566,67 @@ function placeName(area: AreaChoice): string {
 /** The answer, in words, before the numbers that back it. */
 function Finding({
   place,
+  window,
   firstYear,
   slope,
   significant,
-  decision,
+  periods,
   own,
   reference,
   refPlace,
 }: {
   place: string;
+  window: string | null;
   firstYear: number;
-  slope: number;
+  slope: number | null;
   significant: boolean;
-  decision: number | null;
+  periods: { a: YearRange; b: YearRange } | null;
   own: Comparison | null;
   reference: Comparison | null;
   refPlace: string | null;
 }) {
-  const verdict = !significant
-    ? "no detectable trend"
-    : slope < 0
-      ? "fire is falling"
-      : "fire is rising";
+  const where = window ? `${place}, ${window}` : place;
+  const trend =
+    slope === null
+      ? null
+      : !significant
+        ? "no detectable trend"
+        : slope < 0
+          ? "fire is falling"
+          : "fire is rising";
   const pct = own?.enough ? own.changePct : null;
   const differs = own?.p !== null && own?.p !== undefined && own.p < 0.05;
+  if (!periods || pct === null || pct === undefined)
+    return (
+      <div className="tr-finding" aria-live="polite">
+        <h2>
+          {place}: {trend ?? "yearly fire activity"} since {firstYear}.
+        </h2>
+        <p className="muted">
+          {own && own.enough && own.changePct === null
+            ? "Period A has no fire in its median year, so a percentage change is undefined."
+            : `Pick two periods with at least ${MIN_SEGMENT_YEARS} complete years each, without shared years, to compare them.`}
+        </p>
+      </div>
+    );
   return (
     <div className="tr-finding" aria-live="polite">
       <h2>
-        {place}: {verdict} since {firstYear}.
+        {where}: the median year of {rangeLabel(periods.b)} is {Math.abs(pct).toFixed(0)}%{" "}
+        {pct < 0 ? "lower" : "higher"} than in {rangeLabel(periods.a)}.
       </h2>
-      {decision === null ? (
-        <p className="muted">Pick the year a decision took effect to see what changed after it.</p>
-      ) : pct === null || pct === undefined ? (
-        <p className="muted">There is not enough fire before {decision} to compare.</p>
-      ) : (
-        <p>
-          After {decision}, the median year is {Math.abs(pct).toFixed(0)}%{" "}
-          {pct < 0 ? "lower" : "higher"}
-          {reference?.changePct !== null && reference?.changePct !== undefined && refPlace
-            ? `, against ${signed(reference.changePct)}% for ${refPlace}`
-            : ""}
-          {differs
-            ? ". That is more than year-to-year variation explains."
-            : ". That is within normal year-to-year variation."}
-        </p>
-      )}
+      <p>
+        {differs
+          ? "That is more than year-to-year variation explains"
+          : "That is within normal year-to-year variation"}
+        {reference?.changePct !== null && reference?.changePct !== undefined && refPlace
+          ? `; ${refPlace} changed ${signed(reference.changePct)}% between the same periods`
+          : ""}
+        .
+        {trend && !window
+          ? ` Over the whole record (${firstYear} on) there is ${trend === "no detectable trend" ? "no detectable trend" : `a significant trend: ${trend}`}.`
+          : ""}
+      </p>
     </div>
   );
 }
@@ -427,44 +638,53 @@ function slug(text: string): string {
     .replace(/^_|_$/g, "");
 }
 
-function BeforeAfterSummary({
+function PeriodSummary({
   own,
   ref,
   refName,
   drift,
+  periods,
 }: {
   own: Comparison;
   ref: Comparison | null;
   refName: string | null;
   drift: number | null;
+  periods: { a: YearRange; b: YearRange };
 }) {
-  if (!own.enough) return <small>Not enough complete years on each side to compare.</small>;
+  if (!own.enough)
+    return (
+      <small>
+        {overlaps(periods.a, periods.b)
+          ? "The periods overlap."
+          : `Each period needs at least ${MIN_SEGMENT_YEARS} complete years.`}
+      </small>
+    );
   if (own.changePct === null)
     return (
       <small>
-        The median year before the decision has no fire, so a percentage change is undefined.
-        Medians: {formatValue(own.before.median)} before, {formatValue(own.after.median)} after.
+        The median year of period A has no fire, so a percentage change is undefined. Medians:{" "}
+        {formatValue(own.a.median)} in A, {formatValue(own.b.median)} in B.
       </small>
     );
   const p = own.p;
+  const lastYear = Math.max(own.a.lastYear ?? 0, own.b.lastYear ?? 0);
   return (
     <>
       <strong className="hw-big">
         {signed(own.changePct)}%<em> in the median year</em>
       </strong>
       <small>
-        Median {formatValue(own.before.median)} over {own.before.n} years before,{" "}
-        {formatValue(own.after.median)} over {own.after.n} years after
-        {p === null ? "." : ` · Mann–Whitney p = ${p.toFixed(3)}`}
+        Median {formatValue(own.a.median)} over {own.a.n} years in A, {formatValue(own.b.median)}{" "}
+        over {own.b.n} years in B{p === null ? "." : ` · Mann–Whitney p = ${p.toFixed(3)}`}
       </small>
       {ref && ref.changePct !== null && refName && (
         <small>
-          {refName}: {signed(ref.changePct)}% over the same split (
+          {refName}: {signed(ref.changePct)}% between the same periods (
           {Math.abs(own.changePct - ref.changePct).toFixed(0)} points{" "}
           {own.changePct - ref.changePct < 0 ? "below" : "above"} it).
         </small>
       )}
-      {drift !== null && own.after.lastYear !== null && own.after.lastYear >= drift && (
+      {drift !== null && lastYear >= drift && (
         <small className="tr-warn">
           Includes {drift} onward, when MODIS orbits drift: those years may read 8–15% high.
         </small>
@@ -478,8 +698,7 @@ function TerritoryChart({
   ref,
   indexed,
   refName,
-  decision,
-  decisionLabel,
+  periods,
   line,
   drift,
 }: {
@@ -487,8 +706,7 @@ function TerritoryChart({
   ref: YearPoint[];
   indexed: boolean;
   refName: string | null;
-  decision: number | null;
-  decisionLabel: string;
+  periods: { a: YearRange; b: YearRange } | null;
   line: { slope: number; intercept: number } | null;
   drift: number | null;
 }) {
@@ -500,18 +718,22 @@ function TerritoryChart({
   const x = (year: number) => PAD.left + (y1 === y0 ? 0.5 : (year - y0) / (y1 - y0)) * inner;
   const y = (v: number) => PAD.top + (1 - v / max) * (H - PAD.top - PAD.bottom);
   const path = (pts: YearPoint[]) => pts.map((p) => `${x(p.year)},${y(p.value)}`).join(" ");
+  const clampX = (v: number) => Math.min(W - PAD.right, Math.max(PAD.left, v));
 
   const bands = intervalRuns(own);
-
-  const medians =
-    decision !== null
-      ? (() => {
-          const { before, after } = splitAt(own, decision);
-          return [before, after]
-            .filter((s) => s.length >= 3)
-            .map((s) => ({ from: s[0]!.year, to: s.at(-1)!.year, value: summarize(s).median }));
-        })()
-      : [];
+  const shaded = periods
+    ? (["a", "b"] as const).map((k) => {
+        const r = periods[k];
+        const seg = inRange(own, r);
+        return {
+          key: k,
+          x0: clampX(x(r.from - 0.5)),
+          x1: clampX(x(r.to + 0.5)),
+          median: seg.length >= MIN_SEGMENT_YEARS ? summarize(seg).median : null,
+          r,
+        };
+      })
+    : [];
 
   return (
     <div className="hw-chart">
@@ -543,37 +765,28 @@ function TerritoryChart({
             </text>
           ) : null,
         )}
-        {drift !== null && drift <= y1 && (
-          <>
+        {shaded.map((s) => (
+          <g key={s.key}>
             <rect
-              className="tr-drift"
-              x={x(drift - 0.5)}
+              className={`tr-period-band ${s.key}`}
+              x={s.x0}
               y={PAD.top}
-              width={W - PAD.right - x(drift - 0.5)}
+              width={Math.max(0, s.x1 - s.x0)}
               height={H - PAD.top - PAD.bottom}
             />
-          </>
-        )}
-        {decision !== null && (
-          <>
-            <rect
-              className="tr-after"
-              x={x(decision - 0.5)}
-              y={PAD.top}
-              width={W - PAD.right - x(decision - 0.5)}
-              height={H - PAD.top - PAD.bottom}
-            />
-            <line
-              className="tr-decision"
-              x1={x(decision - 0.5)}
-              x2={x(decision - 0.5)}
-              y1={PAD.top}
-              y2={H - PAD.bottom}
-            />
-            <text className="tr-decision-label" x={x(decision - 0.5) + 4} y={PAD.top + 9}>
-              {decisionLabel || `Decision ${decision}`}
+            <text className={`tr-period-label ${s.key}`} x={s.x0 + 4} y={PAD.top + 9}>
+              {`${s.key.toUpperCase()} · ${rangeLabel(s.r)}`}
             </text>
-          </>
+          </g>
+        ))}
+        {drift !== null && drift <= y1 && (
+          <rect
+            className="tr-drift"
+            x={x(drift - 0.5)}
+            y={PAD.top}
+            width={W - PAD.right - x(drift - 0.5)}
+            height={H - PAD.top - PAD.bottom}
+          />
         )}
         {bands.map((run, i) => (
           <polygon
@@ -585,16 +798,18 @@ function TerritoryChart({
             ].join(" ")}
           />
         ))}
-        {medians.map((m) => (
-          <line
-            key={m.from}
-            className="tr-median"
-            x1={x(m.from - 0.4)}
-            x2={x(m.to + 0.4)}
-            y1={y(m.value)}
-            y2={y(m.value)}
-          />
-        ))}
+        {shaded.map((s) =>
+          s.median === null ? null : (
+            <line
+              key={`m${s.key}`}
+              className={`tr-median ${s.key}`}
+              x1={s.x0}
+              x2={s.x1}
+              y1={y(s.median)}
+              y2={y(s.median)}
+            />
+          ),
+        )}
         {line && (
           <line
             className="tr-trend"
@@ -648,9 +863,10 @@ function TerritoryChart({
             <i className="hw-swatch line tr-trend" /> <span>Theil–Sen trend</span>
           </>
         )}
-        {medians.length > 0 && (
+        {shaded.some((s) => s.median !== null) && (
           <>
-            <i className="hw-swatch line tr-median" /> <span>Median year, before and after</span>
+            <i className="hw-swatch line tr-median a" />{" "}
+            <i className="hw-swatch line tr-median b" /> <span>Median year of period A and B</span>
           </>
         )}
         {drift !== null && drift <= y1 && (

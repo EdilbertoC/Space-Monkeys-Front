@@ -1,6 +1,6 @@
 // SI-assisted: written with Claude (Anthropic), reviewed by the Space Monkeys team. See README.
-// Pure statistics for the Territory page: before/after a decision, the trend line and a
-// reference comparison. They only summarise yearly totals the API returned; they never
+// Pure statistics for the Territory page: two periods compared (optionally within a month
+// window), the trend line and a reference comparison. They only summarise yearly totals the API returned; they never
 // invent, fill or rescale a missing year.
 
 export interface YearPoint {
@@ -24,7 +24,7 @@ export function driftYear(switchDate: string | null | undefined): number | null 
     : null;
 }
 
-/** Fewest complete years on each side of a decision for a comparison to be shown. */
+/** Fewest complete years in each period for a comparison to be shown. */
 export const MIN_SEGMENT_YEARS = 3;
 
 export function median(values: readonly number[]): number {
@@ -68,22 +68,118 @@ export function summarize(points: readonly YearPoint[]): Segment {
   };
 }
 
-/** A decision taking effect in `year` puts that whole year on the "after" side. */
-export function splitAt(points: readonly YearPoint[], year: number) {
+/** An inclusive range of calendar years. */
+export interface YearRange {
+  from: number;
+  to: number;
+}
+
+export const inRange = (points: readonly YearPoint[], r: YearRange) =>
+  points.filter((p) => p.year >= r.from && p.year <= r.to);
+
+export const overlaps = (a: YearRange, b: YearRange) => a.from <= b.to && b.from <= a.to;
+
+export const rangeLabel = (r: YearRange) => (r.from === r.to ? `${r.from}` : `${r.from}–${r.to}`);
+
+/** "2003-2013" → range; null when malformed. */
+export function parseRange(text: string | null): YearRange | null {
+  const m = /^(\d{4})-(\d{4})$/.exec(text ?? "");
+  if (!m) return null;
+  const from = Number(m[1]);
+  const to = Number(m[2]);
+  return from <= to ? { from, to } : null;
+}
+
+/**
+ * Starting periods: the first and second half of the years available, so the page opens
+ * with a comparison instead of an empty card. Null when there are too few years.
+ */
+export function defaultPeriods(years: readonly number[]): { a: YearRange; b: YearRange } | null {
+  if (years.length < 2 * MIN_SEGMENT_YEARS) return null;
+  const half = Math.floor(years.length / 2);
   return {
-    before: points.filter((p) => p.year < year),
-    after: points.filter((p) => p.year >= year),
+    a: { from: years[0]!, to: years[half - 1]! },
+    b: { from: years[half]!, to: years.at(-1)! },
   };
 }
 
-/** Decision years that leave at least MIN_SEGMENT_YEARS complete years on each side. */
-export function decisionYears(points: readonly YearPoint[]): number[] {
-  return points
-    .map((p) => p.year)
-    .filter((year) => {
-      const { before, after } = splitAt(points, year);
-      return before.length >= MIN_SEGMENT_YEARS && after.length >= MIN_SEGMENT_YEARS;
-    });
+/** Months of the year, 1–12, inclusive. `from > to` wraps the new year (e.g. Nov–Feb). */
+export interface MonthRange {
+  from: number;
+  to: number;
+}
+
+export const ALL_MONTHS: MonthRange = { from: 1, to: 12 };
+export const MONTHS = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+] as const;
+
+export const isAllYear = (m: MonthRange) => m.from === 1 && m.to === 12;
+
+export const monthsLabel = (m: MonthRange) =>
+  isAllYear(m)
+    ? "whole year"
+    : m.from === m.to
+      ? MONTHS[m.from - 1]!
+      : `${MONTHS[m.from - 1]}–${MONTHS[m.to - 1]}`;
+
+/** The months a window covers, in order (a wrapping window ends in the next year). */
+export function windowMonths(m: MonthRange): number[] {
+  const out: number[] = [];
+  for (let k = m.from; ; k = (k % 12) + 1) {
+    out.push(k);
+    if (k === m.to) break;
+  }
+  return out;
+}
+
+export interface MonthBucket {
+  /** First day of the month, YYYY-MM-DD. */
+  start: string;
+  value: number | null;
+}
+
+/**
+ * Yearly totals restricted to a month window, from monthly buckets. A wrapping window
+ * (Nov–Feb) is assigned to the year it ends in. A year counts only when every month of its
+ * window has a value and the year is in `years` (complete years); nothing is filled in.
+ */
+export function windowTotals(
+  buckets: readonly MonthBucket[],
+  months: MonthRange,
+  years: ReadonlySet<number>,
+): YearPoint[] {
+  const byMonth = new Map<string, number | null>();
+  for (const b of buckets) byMonth.set(b.start.slice(0, 7), b.value);
+  const list = windowMonths(months);
+  const wraps = months.from > months.to;
+  const out: YearPoint[] = [];
+  for (const year of [...years].sort((a, b) => a - b)) {
+    let total = 0;
+    let ok = true;
+    for (const m of list) {
+      const y = wraps && m >= months.from ? year - 1 : year;
+      const v = byMonth.get(`${y}-${String(m).padStart(2, "0")}`);
+      if (v === null || v === undefined) {
+        ok = false;
+        break;
+      }
+      total += v;
+    }
+    if (ok) out.push({ year, value: total });
+  }
+  return out;
 }
 
 // Standard normal CDF (Abramowitz & Stegun 7.1.26, absolute error below 1.5e-7).
@@ -128,28 +224,35 @@ export function mannWhitneyP(a: readonly number[], b: readonly number[]): number
 }
 
 export interface Comparison {
-  before: Segment;
-  after: Segment;
-  /** Change of the median yearly total, in percent of the "before" median. */
+  a: Segment;
+  b: Segment;
+  /** Change of the median yearly total from period A to period B, in percent of A. */
   changePct: number | null;
   p: number | null;
-  /** Both sides have at least MIN_SEGMENT_YEARS years. */
+  /** Both periods have at least MIN_SEGMENT_YEARS years and do not overlap. */
   enough: boolean;
 }
 
-export function compareAt(points: readonly YearPoint[], year: number): Comparison {
-  const { before, after } = splitAt(points, year);
-  const b = summarize(before);
-  const a = summarize(after);
-  const enough = before.length >= MIN_SEGMENT_YEARS && after.length >= MIN_SEGMENT_YEARS;
+/** Period B against period A: change of the median year and a Mann–Whitney test. */
+export function comparePeriods(
+  points: readonly YearPoint[],
+  a: YearRange,
+  b: YearRange,
+): Comparison {
+  const pa = inRange(points, a);
+  const pb = inRange(points, b);
+  const sa = summarize(pa);
+  const sb = summarize(pb);
+  const enough =
+    !overlaps(a, b) && pa.length >= MIN_SEGMENT_YEARS && pb.length >= MIN_SEGMENT_YEARS;
   return {
-    before: b,
-    after: a,
-    changePct: enough && b.median > 0 ? ((a.median - b.median) / b.median) * 100 : null,
+    a: sa,
+    b: sb,
+    changePct: enough && sa.median > 0 ? ((sb.median - sa.median) / sa.median) * 100 : null,
     p: enough
       ? mannWhitneyP(
-          before.map((p) => p.value),
-          after.map((p) => p.value),
+          pa.map((p) => p.value),
+          pb.map((p) => p.value),
         )
       : null,
     enough,

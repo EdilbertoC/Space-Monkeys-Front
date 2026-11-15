@@ -13,6 +13,8 @@ export const BRAZIL_BOUNDS: Bounds = [-75, -34.5, -33, 6.5];
 
 export const lonToX = (lon: number) => ((lon + 180) * MAP_WIDTH) / 360;
 export const latToY = (lat: number) => ((NORTH - lat) * MAP_HEIGHT) / LAT_SPAN;
+export const xToLon = (x: number) => (x * 360) / MAP_WIDTH - 180;
+export const yToLat = (y: number) => NORTH - (y * LAT_SPAN) / MAP_HEIGHT;
 
 /** SVG viewBox for a lon/lat box, padded by `pad` of its size and at least `minSpan` degrees wide. */
 export function viewBoxFor([west, south, east, north]: Bounds, pad = 0.08, minSpan = 16) {
