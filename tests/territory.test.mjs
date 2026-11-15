@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import {
   compareAt,
   decisionYears,
+  driftYear,
   indexSeries,
   intervalRuns,
   mannWhitneyP,
@@ -96,4 +97,12 @@ test("a zero base cannot index a series, so the page must fall back to absolute 
     indexSeries(pts([0, 0, 0, 5, 7]), (y) => y < 2006),
     [],
   );
+});
+
+test("drift is flagged until a switch date on or before 2022-01-01 removes it", () => {
+  assert.equal(driftYear(null), 2022);
+  assert.equal(driftYear(undefined), 2022);
+  assert.equal(driftYear("2024-01-01"), 2022);
+  assert.equal(driftYear("2022-01-01"), null);
+  assert.equal(driftYear("2021-06-01"), null);
 });

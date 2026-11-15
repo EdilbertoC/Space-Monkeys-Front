@@ -76,3 +76,14 @@
   align-items: center;
   gap: var(--space-sm);
 }
+.territory .tr-drift {
+  fill: var(--sensor-modis);
+  opacity: 0.08;
+}
+.territory .tr-drift-label {
+  fill: var(--sensor-modis);
+  font-size: 8.5px;
+}
+.territory .tr-warn {
+  color: var(--sensor-modis);
+}

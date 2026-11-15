@@ -11,6 +11,19 @@ export interface YearPoint {
   high?: number;
 }
 
+/** From 2022 MODIS (Terra and Aqua) observes at drifting local times (docs/methodology.md, section 5). */
+export const MODIS_DRIFT_FROM_YEAR = 2022;
+
+/**
+ * First year the harmonized series still takes from drifted MODIS, or null when a switch to
+ * the VIIRS estimate on or before 2022-01-01 removes it.
+ */
+export function driftYear(switchDate: string | null | undefined): number | null {
+  return !switchDate || switchDate > `${MODIS_DRIFT_FROM_YEAR}-01-01`
+    ? MODIS_DRIFT_FROM_YEAR
+    : null;
+}
+
 /** Fewest complete years on each side of a decision for a comparison to be shown. */
 export const MIN_SEGMENT_YEARS = 3;
 

@@ -23,6 +23,7 @@ import {
 import {
   compareAt,
   decisionYears,
+  driftYear,
   indexSeries,
   intervalRuns,
   median,
@@ -132,6 +133,7 @@ export default function TerritoryPage({
   const refCmp = effective !== null && indexed ? compareAt(ref, effective) : null;
 
   const t = territory.data?.data;
+  const drift = driftYear(meta.harmonization.switch_date);
   const trendLine = indexed ? null : theilSen(own);
 
   const exportCsv = () => {
@@ -245,7 +247,12 @@ export default function TerritoryPage({
               Choose the year a decision took effect to compare the years before and after it.
             </small>
           ) : (
-            <BeforeAfterSummary own={ownCmp} ref={refCmp} refName={refArea && areaLabel(refArea)} />
+            <BeforeAfterSummary
+              own={ownCmp}
+              ref={refCmp}
+              refName={refArea && areaLabel(refArea)}
+              drift={drift}
+            />
           )}
         </Card>
       </div>
@@ -269,6 +276,7 @@ export default function TerritoryPage({
             decision={effective}
             decisionLabel={decisionLabel.trim()}
             line={trendLine}
+            drift={drift}
           />
         ) : (
           <PanelState error={territory.error ?? undefined} />
@@ -320,6 +328,12 @@ export default function TerritoryPage({
             independent (dry spells last several years), so read it as a guide, not a verdict.
           </li>
           <li>
+            From 2022 the MODIS orbits drift, and until the harmonized series switches to the VIIRS
+            estimate it still uses observed MODIS for those years (shaded on the chart). Over Brazil
+            the methodology finds that MODIS 8–15% above the estimate, so recent years can read high
+            and a before/after comparison reaching them leans toward an increase.
+          </li>
+          <li>
             Years drawn as hollow dots are partly estimated from VIIRS after MODIS, with a 90% band.
             The trend is the figure most sensitive to harmonization errors; the method and its test
             scores are on Data Sources.
@@ -354,10 +368,12 @@ function BeforeAfterSummary({
   own,
   ref,
   refName,
+  drift,
 }: {
   own: Comparison;
   ref: Comparison | null;
   refName: string | null;
+  drift: number | null;
 }) {
   if (!own.enough) return <small>Not enough complete years on each side to compare.</small>;
   if (own.changePct === null)
@@ -392,6 +408,13 @@ function BeforeAfterSummary({
           {own.changePct - ref.changePct < 0 ? "below" : "above"} it.
         </small>
       )}
+      {drift !== null && own.after.lastYear !== null && own.after.lastYear >= drift && (
+        <small className="tr-warn">
+          The after period includes {drift} onward, when MODIS orbits drifted. The methodology finds
+          observed MODIS 8–15% above the VIIRS-based estimate over Brazil in those years, so they
+          may read high.
+        </small>
+      )}
     </>
   );
 }
@@ -404,6 +427,7 @@ function TerritoryChart({
   decision,
   decisionLabel,
   line,
+  drift,
 }: {
   own: YearPoint[];
   ref: YearPoint[];
@@ -412,6 +436,7 @@ function TerritoryChart({
   decision: number | null;
   decisionLabel: string;
   line: { slope: number; intercept: number } | null;
+  drift: number | null;
 }) {
   const all = [...own, ...ref];
   const max = Math.max(1, ...all.flatMap((p) => [p.value, p.high ?? 0]));
@@ -463,6 +488,25 @@ function TerritoryChart({
               {p.year}
             </text>
           ) : null,
+        )}
+        {drift !== null && drift <= y1 && (
+          <>
+            <rect
+              className="tr-drift"
+              x={x(drift - 0.5)}
+              y={PAD.top}
+              width={W - PAD.right - x(drift - 0.5)}
+              height={H - PAD.top - PAD.bottom}
+            />
+            <text
+              className="tr-drift-label"
+              x={W - PAD.right - 4}
+              y={H - PAD.bottom - 5}
+              textAnchor="end"
+            >
+              MODIS orbit drift: may read high
+            </text>
+          </>
         )}
         {decision !== null && (
           <>
