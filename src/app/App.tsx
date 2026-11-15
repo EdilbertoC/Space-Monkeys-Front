@@ -189,8 +189,8 @@ export default function App() {
           {ready && page === "Anomaly Alerts" && (
             <AnomalyScan
               meta={ready.meta}
-              onOpenBiome={(biome) => {
-                setArea({ kind: "biome", biome });
+              onOpenArea={(next) => {
+                setArea(next);
                 navigate("Burning Calendar");
               }}
             />

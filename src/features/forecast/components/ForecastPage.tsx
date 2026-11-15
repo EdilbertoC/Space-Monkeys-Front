@@ -114,6 +114,8 @@ export default function ForecastPage() {
         )}
       </section>
 
+      <RegionTable />
+
       {model.status === "success" && <ModelCard model={model.data} />}
     </div>
   );
@@ -184,21 +186,69 @@ export function ModelCard({ model }: { model: Schemas["ForecastModel"] }) {
   );
 }
 
+function useForecastSummary() {
+  return useApi((signal) => forecastApi.getSummary({ signal }), []);
+}
+
+/** Per biome and Brazil: expected number of 0.25° cells with fire on each day. */
+function RegionTable() {
+  const summary = useForecastSummary();
+  return (
+    <section className="panel">
+      <PanelTitle
+        title="By biome"
+        subtitle="Expected number of 0.25° cells with at least one VIIRS fire detection (the sum of the cells' probabilities), and in brackets the cells at 50% or more. Each forecast cell belongs to the biome covering most of it."
+      />
+      {summary.status !== "success" ? (
+        <PanelState error={summary.error ?? undefined} />
+      ) : (
+        <div className="hw-table-wrap">
+          <table className="hw-table">
+            <thead>
+              <tr>
+                <th>Region</th>
+                <th>Cells</th>
+                {summary.data.valid_dates.map((d, i) => (
+                  <th key={d}>{i === 0 ? "Today" : d.slice(5)}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {summary.data.regions.map((r) => (
+                <tr key={r.name}>
+                  <td>{r.name}</td>
+                  <td>{r.cells.toLocaleString("en-US")}</td>
+                  {r.expected_fire_cells.map((v, i) => (
+                    <td key={i}>
+                      {v.toFixed(1)} <small>({r.cells_at_least_50[i] ?? 0})</small>
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  );
+}
+
 /** Compact card for the Overview page. */
 export function ForecastSummary({ onOpen }: { onOpen: () => void }) {
-  const forecast = useForecast();
+  const forecast = useForecastSummary();
+  const brazil = forecast.data?.regions.find((r) => r.kind === "country");
   return (
     <section className="panel hw-card hw-forecast-summary">
-      <div className="hw-card-title">7-day fire forecast</div>
-      {forecast.status === "success" ? (
+      <div className="hw-card-title">7-day fire forecast · Brazil</div>
+      {forecast.status === "success" && brazil ? (
         <>
           <strong className="hw-big">
-            {forecast.data.cells.filter((c) => (c.p[0] ?? 0) >= 0.5).length}
-            <em> cells ≥ 50% today</em>
+            {brazil.expected_fire_cells[0]?.toFixed(0)}
+            <em> cells with fire expected today</em>
           </strong>
           <small>
-            Issued for {longDate(forecast.data.issued_for)} ·{" "}
-            {forecast.data.cells.filter((c) => c.anchored).length} raised by live fires
+            0.25° cells; {brazil.cells_at_least_50[0]} at 50% or more. Issued for{" "}
+            {longDate(forecast.data.issued_for)}.
           </small>
         </>
       ) : (

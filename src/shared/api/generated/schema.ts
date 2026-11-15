@@ -106,6 +106,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/history/anomalies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Every month of a year against normal, for every biome (and Brazil)
+         * @description The anomaly of GET /history/anomaly for each month of `year`, in every biome
+         *     (and Brazil with `areas=biomes+country`), in one call. A month still in progress
+         *     is compared up to the record's last day with the same dates of the base years,
+         *     and flagged `partial`. A month that cannot be assessed has `class: null` and a
+         *     `reason`.
+         */
+        get: operations["getAnomalyScan"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/history/season": {
         parameters: {
             query?: never;
@@ -161,7 +185,11 @@ export interface paths {
         };
         /**
          * Fire cell-days per cell in a period, to paint the map
-         * @description One entry per 0.1° cell with at least one fire cell-day in the period. Cells with no fire are left out.
+         * @description One entry per cell with at least one fire cell-day in the period; cells with no
+         *     fire are left out. With `cell_degrees` coarser than 0.1, each 0.1° cell is
+         *     assigned to the coarse cell holding its centre and the values are summed, so they
+         *     stay fire cell-days of 0.1° cells. Above `max_map_cells` the answer is 413;
+         *     `cell_degrees=auto` picks the finest grid within the limit.
          */
         get: operations["getMap"];
         put?: never;
@@ -283,6 +311,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/forecast/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Expected fire cells per biome (and Brazil) for each of the next 7 days
+         * @description The current forecast summarised per region. Each 0.25° forecast cell belongs to
+         *     the biome holding most of the 0.1° cells whose centre falls in it. For each
+         *     region and day: `expected_fire_cells`, the sum of the cells' probabilities (the
+         *     expected number of 0.25° cells with at least one VIIRS fire detection), and
+         *     `cells_at_least_50`. Only forecast cells (the mask, or anchored) count.
+         */
+        get: operations["getForecastSummary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -359,10 +411,12 @@ export interface components {
         };
         AreaSummary: {
             /** @enum {string} */
-            kind: "bbox" | "biome" | "area_id";
+            kind: "bbox" | "biome" | "area_id" | "country";
             bbox?: number[];
             biome?: components["schemas"]["Biome"];
             area_id?: string;
+            /** @enum {string} */
+            country?: "BR";
             /** @description Number of 0.1° cells in the area. */
             cells: number;
         };
@@ -502,7 +556,12 @@ export interface components {
             series: components["schemas"]["Series"];
             period: components["schemas"]["Period"];
             value: number;
-            /** @description For the harmonized series, the 90% interval of `value`. */
+            /**
+             * @description For series=harmonized, the 90% interval of `value`, built like a calendar
+             *     bucket: days served from MODIS are exact and the VIIRS-estimate part gets the
+             *     area's per-biome band (low = high = value when every day is MODIS). Null for
+             *     the other series.
+             */
             value_interval?: components["schemas"]["Interval"] | null;
             normal: {
                 median: number;
@@ -516,6 +575,36 @@ export interface components {
             class: "below" | "normal" | "above" | "record";
             base_years: number[];
             excluded_years?: number[];
+        };
+        AnomalyScan: {
+            /** @constant */
+            unit: "fire_cell_days";
+            series: components["schemas"]["Series"];
+            year: number;
+            base_years: number[];
+            areas: {
+                area: components["schemas"]["AreaSummary"];
+                months: {
+                    /** Format: date */
+                    start: string;
+                    /** Format: date */
+                    end: string;
+                    /** @description The month is still in progress. */
+                    partial: boolean;
+                    value?: number;
+                    normal?: {
+                        median: number;
+                        p10: number;
+                        p90: number;
+                    };
+                    percentile?: number;
+                    ratio_to_median?: number | null;
+                    class: ("below" | "normal" | "above" | "record") | null;
+                    base_years?: number[];
+                    /** @description Why the month has no class. */
+                    reason?: string;
+                }[];
+            }[];
         };
         Season: {
             area: components["schemas"]["AreaSummary"];
@@ -562,10 +651,11 @@ export interface components {
             area: components["schemas"]["AreaSummary"];
             /** @constant */
             unit: "fire_cell_days";
+            /** @description Size of the cells in this answer: 0.1, 0.25, 0.5 or 1. */
             grid_degrees: number;
             period: components["schemas"]["Period"];
             cells: {
-                /** @description row * 3600 + col, counted from (-90, -180) in 0.1° steps. */
+                /** @description row * n_cols + col of the answer's grid, counted from (-90, -180); n_cols = 360 / grid_degrees (3600 at 0.1°). */
                 cell_id: number;
                 /** @description Cell centre. */
                 lat: number;
@@ -683,6 +773,28 @@ export interface components {
                 anchored: boolean;
             }[];
         };
+        ForecastSummary: {
+            model: string;
+            /** Format: date */
+            issued_for: string;
+            valid_dates: string[];
+            /** Format: date-time */
+            generated_at: string;
+            /** Format: date-time */
+            anchored_at?: string | null;
+            resolution_deg: number;
+            regions: {
+                /** @enum {string} */
+                kind: "biome" | "country";
+                name: string;
+                /** @description Forecast cells in the region. */
+                cells: number;
+                /** @description One per valid date. */
+                expected_fire_cells: number[];
+                /** @description One per valid date. */
+                cells_at_least_50: number[];
+            }[];
+        };
         /** @description The model card (models/fire_forecast_brazil/meta.json) plus status. */
         ForecastModel: {
             model: string;
@@ -748,7 +860,7 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
-        /** @description Not exactly one of bbox, biome, area_id was given. */
+        /** @description Not exactly one of bbox, biome, area_id, country was given. */
         BadArea: {
             headers: {
                 [name: string]: unknown;
@@ -756,7 +868,7 @@ export interface components {
             content: {
                 /**
                  * @example {
-                 *       "detail": "give exactly one of bbox, biome, area_id"
+                 *       "detail": "give exactly one of bbox, biome, area_id, country"
                  *     }
                  */
                 "application/json": components["schemas"]["Error"];
@@ -811,7 +923,7 @@ export interface components {
     };
     parameters: {
         /**
-         * @description Area as west,south,east,north in degrees (WGS84). History routes need exactly one of bbox, biome, area_id.
+         * @description Area as west,south,east,north in degrees (WGS84). History routes need exactly one of bbox, biome, area_id, country.
          * @example -58,-19,-56,-17
          */
         bbox: string;
@@ -819,6 +931,11 @@ export interface components {
         biome: components["schemas"]["Biome"];
         /** @description Id returned by POST /history/areas. */
         area_id: string;
+        /**
+         * @description A whole country: `BR` is Brazil (every cell labelled with an IBGE biome).
+         *     Predefined like a biome, so it is not held to `max_area_cells`.
+         */
+        country: "BR";
         /** @example 2020-08-01 */
         start: string;
         /** @example 2020-10-31 */
@@ -888,7 +1005,7 @@ export interface operations {
         parameters: {
             query: {
                 /**
-                 * @description Area as west,south,east,north in degrees (WGS84). History routes need exactly one of bbox, biome, area_id.
+                 * @description Area as west,south,east,north in degrees (WGS84). History routes need exactly one of bbox, biome, area_id, country.
                  * @example -58,-19,-56,-17
                  */
                 bbox?: components["parameters"]["bbox"];
@@ -896,6 +1013,11 @@ export interface operations {
                 biome?: components["parameters"]["biome"];
                 /** @description Id returned by POST /history/areas. */
                 area_id?: components["parameters"]["area_id"];
+                /**
+                 * @description A whole country: `BR` is Brazil (every cell labelled with an IBGE biome).
+                 *     Predefined like a biome, so it is not held to `max_area_cells`.
+                 */
+                country?: components["parameters"]["country"];
                 /** @example 2020-08-01 */
                 start: components["parameters"]["start"];
                 /** @example 2020-10-31 */
@@ -928,7 +1050,7 @@ export interface operations {
         parameters: {
             query?: {
                 /**
-                 * @description Area as west,south,east,north in degrees (WGS84). History routes need exactly one of bbox, biome, area_id.
+                 * @description Area as west,south,east,north in degrees (WGS84). History routes need exactly one of bbox, biome, area_id, country.
                  * @example -58,-19,-56,-17
                  */
                 bbox?: components["parameters"]["bbox"];
@@ -936,6 +1058,11 @@ export interface operations {
                 biome?: components["parameters"]["biome"];
                 /** @description Id returned by POST /history/areas. */
                 area_id?: components["parameters"]["area_id"];
+                /**
+                 * @description A whole country: `BR` is Brazil (every cell labelled with an IBGE biome).
+                 *     Predefined like a biome, so it is not held to `max_area_cells`.
+                 */
+                country?: components["parameters"]["country"];
                 /** @description Which series to compute on. Defaults to harmonized; until harmonization is available, the server answers `harmonized` requests with 409 and the client should fall back to `modis`. `viirs` is answered with 422 here, because it is not comparable across years. */
                 series?: components["parameters"]["series"];
                 /** @description First year of the base period for "normal" (default 2003, the first full year with both Terra and Aqua). */
@@ -971,7 +1098,7 @@ export interface operations {
         parameters: {
             query: {
                 /**
-                 * @description Area as west,south,east,north in degrees (WGS84). History routes need exactly one of bbox, biome, area_id.
+                 * @description Area as west,south,east,north in degrees (WGS84). History routes need exactly one of bbox, biome, area_id, country.
                  * @example -58,-19,-56,-17
                  */
                 bbox?: components["parameters"]["bbox"];
@@ -979,6 +1106,11 @@ export interface operations {
                 biome?: components["parameters"]["biome"];
                 /** @description Id returned by POST /history/areas. */
                 area_id?: components["parameters"]["area_id"];
+                /**
+                 * @description A whole country: `BR` is Brazil (every cell labelled with an IBGE biome).
+                 *     Predefined like a biome, so it is not held to `max_area_cells`.
+                 */
+                country?: components["parameters"]["country"];
                 /** @example 2020-08-01 */
                 start: components["parameters"]["start"];
                 /** @example 2020-10-31 */
@@ -1013,11 +1145,43 @@ export interface operations {
             503: components["responses"]["HistoryUnavailable"];
         };
     };
+    getAnomalyScan: {
+        parameters: {
+            query: {
+                year: number;
+                areas?: "biomes" | "biomes+country";
+                /** @description Which series to compute on. Defaults to harmonized; until harmonization is available, the server answers `harmonized` requests with 409 and the client should fall back to `modis`. `viirs` is answered with 422 here, because it is not comparable across years. */
+                series?: components["parameters"]["series"];
+                /** @description First year of the base period for "normal" (default 2003, the first full year with both Terra and Aqua). */
+                base_start_year?: components["parameters"]["base_start_year"];
+                /** @description Last year of the base period (default the last complete year). */
+                base_end_year?: components["parameters"]["base_end_year"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Monthly anomalies per area. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnomalyScan"];
+                };
+            };
+            409: components["responses"]["HarmonizationPending"];
+            422: components["responses"]["Invalid"];
+            503: components["responses"]["HistoryUnavailable"];
+        };
+    };
     getSeason: {
         parameters: {
             query: {
                 /**
-                 * @description Area as west,south,east,north in degrees (WGS84). History routes need exactly one of bbox, biome, area_id.
+                 * @description Area as west,south,east,north in degrees (WGS84). History routes need exactly one of bbox, biome, area_id, country.
                  * @example -58,-19,-56,-17
                  */
                 bbox?: components["parameters"]["bbox"];
@@ -1025,6 +1189,11 @@ export interface operations {
                 biome?: components["parameters"]["biome"];
                 /** @description Id returned by POST /history/areas. */
                 area_id?: components["parameters"]["area_id"];
+                /**
+                 * @description A whole country: `BR` is Brazil (every cell labelled with an IBGE biome).
+                 *     Predefined like a biome, so it is not held to `max_area_cells`.
+                 */
+                country?: components["parameters"]["country"];
                 year: number;
                 /** @description Which series to compute on. Defaults to harmonized; until harmonization is available, the server answers `harmonized` requests with 409 and the client should fall back to `modis`. `viirs` is answered with 422 here, because it is not comparable across years. */
                 series?: components["parameters"]["series"];
@@ -1060,7 +1229,7 @@ export interface operations {
         parameters: {
             query?: {
                 /**
-                 * @description Area as west,south,east,north in degrees (WGS84). History routes need exactly one of bbox, biome, area_id.
+                 * @description Area as west,south,east,north in degrees (WGS84). History routes need exactly one of bbox, biome, area_id, country.
                  * @example -58,-19,-56,-17
                  */
                 bbox?: components["parameters"]["bbox"];
@@ -1068,6 +1237,11 @@ export interface operations {
                 biome?: components["parameters"]["biome"];
                 /** @description Id returned by POST /history/areas. */
                 area_id?: components["parameters"]["area_id"];
+                /**
+                 * @description A whole country: `BR` is Brazil (every cell labelled with an IBGE biome).
+                 *     Predefined like a biome, so it is not held to `max_area_cells`.
+                 */
+                country?: components["parameters"]["country"];
                 /** @description Which series to compute on. Defaults to harmonized; until harmonization is available, the server answers `harmonized` requests with 409 and the client should fall back to `modis`. `viirs` is answered with 422 here, because it is not comparable across years. */
                 series?: components["parameters"]["series"];
                 start_year?: number;
@@ -1099,8 +1273,10 @@ export interface operations {
     getMap: {
         parameters: {
             query: {
+                /** @description Grid of the answer (`auto` = finest grid within `max_map_cells`). */
+                cell_degrees?: "0.1" | "0.25" | "0.5" | "1" | "auto";
                 /**
-                 * @description Area as west,south,east,north in degrees (WGS84). History routes need exactly one of bbox, biome, area_id.
+                 * @description Area as west,south,east,north in degrees (WGS84). History routes need exactly one of bbox, biome, area_id, country.
                  * @example -58,-19,-56,-17
                  */
                 bbox?: components["parameters"]["bbox"];
@@ -1108,6 +1284,11 @@ export interface operations {
                 biome?: components["parameters"]["biome"];
                 /** @description Id returned by POST /history/areas. */
                 area_id?: components["parameters"]["area_id"];
+                /**
+                 * @description A whole country: `BR` is Brazil (every cell labelled with an IBGE biome).
+                 *     Predefined like a biome, so it is not held to `max_area_cells`.
+                 */
+                country?: components["parameters"]["country"];
                 /** @example 2020-08-01 */
                 start: components["parameters"]["start"];
                 /** @example 2020-10-31 */
@@ -1139,7 +1320,7 @@ export interface operations {
         parameters: {
             query?: {
                 /**
-                 * @description Area as west,south,east,north in degrees (WGS84). History routes need exactly one of bbox, biome, area_id.
+                 * @description Area as west,south,east,north in degrees (WGS84). History routes need exactly one of bbox, biome, area_id, country.
                  * @example -58,-19,-56,-17
                  */
                 bbox?: components["parameters"]["bbox"];
@@ -1167,7 +1348,7 @@ export interface operations {
         parameters: {
             query?: {
                 /**
-                 * @description Area as west,south,east,north in degrees (WGS84). History routes need exactly one of bbox, biome, area_id.
+                 * @description Area as west,south,east,north in degrees (WGS84). History routes need exactly one of bbox, biome, area_id, country.
                  * @example -58,-19,-56,-17
                  */
                 bbox?: components["parameters"]["bbox"];
@@ -1218,7 +1399,7 @@ export interface operations {
                 /** @description Only cells reaching this probability on any day. */
                 min_p?: number;
                 /**
-                 * @description Area as west,south,east,north in degrees (WGS84). History routes need exactly one of bbox, biome, area_id.
+                 * @description Area as west,south,east,north in degrees (WGS84). History routes need exactly one of bbox, biome, area_id, country.
                  * @example -58,-19,-56,-17
                  */
                 bbox?: components["parameters"]["bbox"];
@@ -1269,6 +1450,35 @@ export interface operations {
                 };
             };
             /** @description The forecast is disabled. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getForecastSummary: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Forecast per region. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForecastSummary"];
+                };
+            };
+            /** @description The forecast is disabled or not issued yet, or the historical data (biome labels) is missing. */
             503: {
                 headers: {
                     [name: string]: unknown;

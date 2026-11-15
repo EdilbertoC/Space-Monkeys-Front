@@ -1,63 +1,39 @@
 // SI-assisted: written with Claude (Anthropic), reviewed by the Space Monkeys team. See README.
-// Month-by-month anomaly scan of every biome for one year. For each biome it reads the
-// monthly calendar (/history/calendar) and the monthly normal (/history/climatology) and
-// flags months above the 90th or below the 10th percentile of the base years. Months
-// still in progress are not compared with full-month normals.
+// Every month of a year against normal, for every biome and Brazil, from one call to
+// GET /history/anomalies. The month in progress is compared up to the last day of data
+// with the same dates of the base years, and marked as partial.
 import { useMemo, useState } from "react";
 import { historyApi } from "../../../app/api";
-import type { Biome } from "../../../shared/api/types";
 import { useApi } from "../../../shared/api/useApi";
 import SelectControl from "../../../shared/ui/SelectControl";
 import { Icon, PanelTitle } from "../../../shared/ui/ui";
+import type { AreaChoice } from "../model/area";
+import { flaggedMonths, scanRows, type MonthCell } from "../model/anomaly-scan";
 import {
+  ANOMALY_LABEL,
   coverageYears,
   formatValue,
   MONTH_SHORT,
-  yearRange,
   type Meta,
 } from "../model/history-view";
-import { classifyMonths } from "../model/anomaly-scan";
 import { PanelState } from "./HistoryParts";
 
 export default function AnomalyScan({
   meta,
-  onOpenBiome,
+  onOpenArea,
 }: {
   meta: Meta;
-  onOpenBiome: (biome: Biome) => void;
+  onOpenArea: (area: AreaChoice) => void;
 }) {
   const years = useMemo(() => coverageYears(meta), [meta]);
   const [year, setYear] = useState(years[0]!);
-  const biomes = meta.biomes.map((b) => b.name);
-  const range = yearRange(meta, year);
   const scan = useApi(
-    (signal) =>
-      Promise.all(
-        biomes.map(async (biome) => {
-          const [calendar, normal] = await Promise.all([
-            historyApi.getCalendar({ biome, ...range, granularity: "month" }, { signal }),
-            historyApi.getClimatology({ biome, granularity: "month" }, { signal }),
-          ]);
-          return {
-            biome,
-            fallback: normal.fallback,
-            baseYears: normal.data.base_years,
-            months: classifyMonths(year, calendar.buckets, normal.data.buckets),
-          };
-        }),
-      ),
-    [year, biomes.join(",")],
+    (signal) => historyApi.getAnomalyScan({ year, areas: "biomes+country" }, { signal }),
+    [year],
   );
-
-  const flagged =
-    scan.data
-      ?.flatMap((row) =>
-        row.months
-          .filter((m) => m.status === "above")
-          .map((m) => ({ biome: row.biome, ...m, ratio: m.median ? m.value! / m.median : null })),
-      )
-      .sort((a, b) => (b.ratio ?? 0) - (a.ratio ?? 0)) ?? [];
-  const base = scan.data?.[0]?.baseYears;
+  const rows = useMemo(() => (scan.data ? scanRows(scan.data.data) : []), [scan.data]);
+  const flagged = flaggedMonths(rows);
+  const base = scan.data?.data.base_years;
 
   return (
     <div className="history-workspace">
@@ -78,60 +54,58 @@ export default function AnomalyScan({
           </SelectControl>
         </div>
         <p className="hw-note">
-          <Icon name="info" size={13} /> Harmonized fire cell-days per month in each biome, compared
-          with the 10th–90th percentile of the same month in the base years
-          {base ? ` (${base[0]}–${base[1]})` : ""}. Computed on request from the history API; the
-          backend does not issue alerts.
+          <Icon name="info" size={13} /> Fire cell-days of each month in every biome and in Brazil,
+          compared with the same dates in the base years
+          {base ? ` (${base[0]}–${base[1]})` : ""}: above the 90th percentile, highest on record,
+          below the 10th, or within. Computed on request; the backend does not issue alerts.
         </p>
       </section>
 
       {scan.status !== "success" ? (
         <section className="panel">
           <PanelState error={scan.error ?? undefined} />
-          {scan.status === "loading" && (
-            <p className="hw-note hw-pad">
-              Scanning {biomes.length} biomes; this takes a few seconds.
-            </p>
-          )}
         </section>
       ) : (
         <>
           <section className="panel">
             <PanelTitle
               title={`Months above normal in ${year}`}
-              subtitle={`${flagged.length} biome-months above the 90th percentile. Click one to open its calendar.`}
+              subtitle={`${flagged.length} area-months above the 90th percentile of their base years. Click one to open its calendar.`}
             />
             {flagged.length === 0 ? (
-              <PanelState
-                error={new Error("No biome-month above the 90th percentile this year.")}
-              />
+              <PanelState error={new Error("No month above the 90th percentile this year.")} />
             ) : (
               <div className="hw-table-wrap">
                 <table className="hw-table">
                   <thead>
                     <tr>
-                      <th>Biome</th>
+                      <th>Area</th>
                       <th>Month</th>
                       <th>Fire cell-days</th>
                       <th>Median</th>
                       <th>p90</th>
                       <th>× median</th>
+                      <th>Class</th>
                       <th />
                     </tr>
                   </thead>
                   <tbody>
                     {flagged.map((f) => (
-                      <tr key={`${f.biome}${f.month}`}>
-                        <td>{f.biome}</td>
+                      <tr key={`${f.name}${f.month}`}>
+                        <td>{f.name}</td>
                         <td>
                           {MONTH_SHORT[f.month - 1]} {year}
+                          {f.partial && <span className="hw-tag">to {f.end.slice(5)}</span>}
                         </td>
                         <td>{formatValue(f.value)}</td>
                         <td>{formatValue(f.median)}</td>
                         <td>{formatValue(f.p90)}</td>
                         <td>{f.ratio === null ? "—" : `${f.ratio.toFixed(1)}×`}</td>
+                        <td className={`hw-class-${f.status}`}>
+                          {f.status === "record" ? ANOMALY_LABEL.record : ANOMALY_LABEL.above}
+                        </td>
                         <td>
-                          <button className="text-link" onClick={() => onOpenBiome(f.biome)}>
+                          <button className="text-link" onClick={() => onOpenArea(f.area)}>
                             Calendar <Icon name="arrow" size={12} />
                           </button>
                         </td>
@@ -145,50 +119,62 @@ export default function AnomalyScan({
 
           <section className="panel">
             <PanelTitle
-              title="All biomes, month by month"
-              subtitle="Above the 90th percentile, below the 10th, within the band, month still in progress, or no data."
+              title="Every area, month by month"
+              subtitle="▲▲ highest on record · ▲ above the 90th percentile · ▼ below the 10th · plain: within the band · hatched: month in progress · dashed: not assessed."
             />
             <div
               className="hw-matrix"
               role="table"
-              aria-label={`Monthly status per biome in ${year}`}
+              aria-label={`Monthly status per area in ${year}`}
             >
               <div className="hw-matrix-row head" role="row">
-                <span role="columnheader">Biome</span>
+                <span role="columnheader">Area</span>
                 {MONTH_SHORT.map((m) => (
                   <span key={m} role="columnheader">
                     {m}
                   </span>
                 ))}
               </div>
-              {scan.data.map((row) => (
-                <div className="hw-matrix-row" role="row" key={row.biome}>
+              {rows.map((row) => (
+                <div className="hw-matrix-row" role="row" key={row.name}>
                   <button
                     className="text-link"
                     role="rowheader"
-                    onClick={() => onOpenBiome(row.biome)}
+                    onClick={() => onOpenArea(row.area)}
                   >
-                    {row.biome}
+                    {row.name}
                   </button>
                   {row.months.map((m) => (
                     <span
                       key={m.month}
                       role="cell"
-                      className={`hw-mcell ${m.status}`}
-                      title={`${row.biome}, ${MONTH_SHORT[m.month - 1]} ${year}: ${formatValue(m.value)} fire cell-days (median ${formatValue(m.median)}, p10–p90 ${formatValue(m.p10)}–${formatValue(m.p90)}) · ${m.status}`}
+                      className={`hw-mcell ${m.status} ${m.partial ? "partial" : ""}`}
+                      title={cellTitle(row.name, year, m)}
                     >
-                      {m.status === "above" ? "▲" : m.status === "below" ? "▼" : ""}
+                      {m.status === "record"
+                        ? "▲▲"
+                        : m.status === "above"
+                          ? "▲"
+                          : m.status === "below"
+                            ? "▼"
+                            : ""}
                     </span>
                   ))}
                 </div>
               ))}
             </div>
-            {scan.data.some((r) => r.fallback) && (
-              <p className="hw-note hw-pad">Harmonized series unavailable: normals use MODIS.</p>
+            {scan.data.fallback && (
+              <p className="hw-note hw-pad">Harmonized series unavailable: the scan uses MODIS.</p>
             )}
           </section>
         </>
       )}
     </div>
   );
+}
+
+function cellTitle(name: string, year: number, m: MonthCell) {
+  const when = `${name}, ${MONTH_SHORT[m.month - 1]} ${year}${m.partial ? ` (to ${m.end})` : ""}`;
+  if (m.status === "nodata") return `${when}: not assessed (${m.reason ?? "no data"})`;
+  return `${when}: ${formatValue(m.value)} fire cell-days (median ${formatValue(m.median)}, p10–p90 ${formatValue(m.p10)}–${formatValue(m.p90)}) · ${ANOMALY_LABEL[m.status]}`;
 }

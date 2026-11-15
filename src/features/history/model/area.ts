@@ -2,22 +2,30 @@
 // The area of interest shared by every page: a Brazilian biome or a lon/lat box.
 import type { AreaSelector, Biome } from "../../../shared/api/types.ts";
 
-export type AreaChoice = { kind: "biome"; biome: Biome } | { kind: "bbox"; bbox: string };
+export type AreaChoice =
+  | { kind: "biome"; biome: Biome }
+  | { kind: "country"; country: "BR" }
+  | { kind: "bbox"; bbox: string };
 
 export const DEFAULT_AREA: AreaChoice = { kind: "biome", biome: "Pantanal" };
 
 export function areaSelector(area: AreaChoice): AreaSelector {
-  return area.kind === "biome" ? { biome: area.biome } : { bbox: area.bbox };
+  if (area.kind === "biome") return { biome: area.biome };
+  if (area.kind === "country") return { country: area.country };
+  return { bbox: area.bbox };
 }
 
 export function areaLabel(area: AreaChoice): string {
   if (area.kind === "biome") return `${area.biome} biome (IBGE 2019)`;
+  if (area.kind === "country") return "Brazil (all biomes)";
   const [w, s, e, n] = area.bbox.split(",");
   return `Box ${s}° to ${n}° lat, ${w}° to ${e}° lon`;
 }
 
 export function areaKey(area: AreaChoice): string {
-  return area.kind === "biome" ? `biome:${area.biome}` : `bbox:${area.bbox}`;
+  if (area.kind === "biome") return `biome:${area.biome}`;
+  if (area.kind === "country") return `country:${area.country}`;
+  return `bbox:${area.bbox}`;
 }
 
 /** Inclusive number of UTC days in a "start/end" period. */

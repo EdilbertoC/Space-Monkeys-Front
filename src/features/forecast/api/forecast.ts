@@ -15,5 +15,7 @@ export function createForecastApi(http: HttpClient) {
         options,
       ),
     getModel: (options?: RequestOptions) => http.get("/forecast/model", undefined, options),
+    /** Expected fire cells per biome and Brazil for each of the next 7 days. */
+    getSummary: (options?: RequestOptions) => http.get("/forecast/summary", undefined, options),
   };
 }

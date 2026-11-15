@@ -20,6 +20,7 @@ Generated types check consumers at compile time. The transport rejects invalid J
 | `historyApi.getSeason` | GET | `/history/season` |
 | `historyApi.getTrend` | GET | `/history/trend` |
 | `historyApi.getMap` | GET | `/history/map` |
+| `historyApi.getAnomalyScan` | GET | `/history/anomalies` |
 | `liveApi.getFires` | GET | `/fires/live` |
 | `liveApi.getDetections` | GET | `/detections/recent` |
 | `subscribeFires(http, handlers)` | SSE | `/fires/stream` |
@@ -27,6 +28,7 @@ Generated types check consumers at compile time. The transport rejects invalid J
 | `systemApi.getStatus` | GET | `/status` |
 | `forecastApi.getForecast` | GET | `/forecast` |
 | `forecastApi.getModel` | GET | `/forecast/model` |
+| `forecastApi.getSummary` | GET | `/forecast/summary` |
 
 ## Using services in a screen
 
@@ -72,33 +74,35 @@ Replace the state with the received `snapshot`. For pulses, use `applyPulse(prev
 
 ## Which page reads what
 
-The area (biome or lon/lat box) and the period are shared by Overview, Fire Map, Historical Analysis and Burning Calendar. `/history/meta` is read once by `App` and passed down; the default period is the last 30 days of the record.
+The area (Brazil, a biome or a lon/lat box) and the period are shared by Overview, Fire Map, Historical Analysis and Burning Calendar. `/history/meta` is read once by `App` and passed down; the default period is the last 30 days of the record.
 
 | Page | Routes |
 | --- | --- |
-| Overview | `/history/calendar` (KPIs, chart), `/history/anomaly` (period vs normal), `/history/map` + `/fires/live` (map), `/forecast` (summary card), `/fires/live` (table) |
-| Fire Map | `/history/map`, `/fires/live` |
+| Overview | `/history/calendar` (KPIs, chart), `/history/anomaly` (period vs normal, with interval), `/history/map?cell_degrees=auto` + `/fires/live` (map), `/forecast/summary` (Brazil card), `/fires/live` (table) |
+| Fire Map | `/history/map?cell_degrees=auto`, `/fires/live` |
 | Burning Calendar | `/history/calendar` (day and week), `/history/climatology`, `/history/anomaly`, `/history/season`, `/history/trend` |
 | Historical Analysis | `/history/calendar` (KPIs, VIIRS yearly totals), `/history/trend` (harmonized and MODIS), `/history/meta` (method) |
-| Anomaly Alerts | `/history/calendar` (month) and `/history/climatology` (month) for every biome |
-| Risk Forecast | `/forecast`, `/forecast/model` |
+| Anomaly Alerts | `/history/anomalies?areas=biomes+country` (one call) |
+| Risk Forecast | `/forecast`, `/forecast/model`, `/forecast/summary` (table by biome) |
 | Alert Center | none: the backend has no alert routes, and the page says so |
 | Data Sources | `/status`, `/history/meta` |
 | Sidebar | `/status` |
 
-## What the backend does not provide yet
+## Backend gaps
 
-Each item below is visible in the front as a missing feature or a slow page, never as made-up data.
+Found while wiring the pages. Contract 0.7.0 (ryangustav/Space-Monkeys#4) closes the ones marked done, and the front uses them.
 
-1. **Forecast without `FIRMS_MAP_KEY`**: `/forecast` answers 503 and FIRMS NRT live fires are off until the key is set on the server. Only GOES ABI feeds the live layer then.
-2. **No national area**: Brazil as a box has 160,000 cells, above `max_area_cells` (50,000), so there is no "all of Brazil" view. A `country=BR` area (or a raised limit with precomputed national series) is needed.
-3. **No named administrative areas**: only biomes, boxes and drawn polygons. States, municipalities, conservation units and indigenous lands would need a catalogue (for example IBGE boundaries) with ids usable as `area_id`.
-4. **No alert routes**: nothing issues, stores or delivers alerts, or tracks read state. Alert Center and the notification bell stay empty.
-5. **No server-side anomaly scan**: Anomaly Alerts sends 12 requests (calendar and climatology for 6 biomes) and takes about 20 s. A route such as `/history/anomalies?year=&granularity=month` over all biomes (or areas) would do it in one call.
-6. **Slow analytics**: climatology, anomaly, season and trend take about 2 s each, recomputed per request. Caching or precomputed normals per biome would make Overview and Burning Calendar load in about a second.
-7. **No interval on period totals**: `/history/anomaly` always returns `value_interval: null`, and calendar intervals cannot be added across buckets. Totals that include VIIRS-estimate days need an interval computed on the server.
-8. **Map size limit**: `/history/map` answers 413 above 20,000 cells (for example Amazon over a full year: 25,473). A coarser aggregation level or tiles are needed for large areas and long periods.
-9. **Live fires not filtered by area**: `/fires/live` and `/detections/recent` accept only `bbox`, not `biome` or `area_id`, so the live table shows every fire in the worker's window.
-10. **Forecast not summarised by area**: `/forecast` lists cells only. A per-biome or per-area daily summary (for example expected fire cells) is needed for a regional view, instead of the front guessing which cells fall in a biome.
+| # | Gap | State |
+| --- | --- | --- |
+| 1 | `/forecast` and FIRMS NRT need `FIRMS_MAP_KEY` on the server | configuration |
+| 2 | No national area (Brazil has 160,000 cells as a box, above `max_area_cells`) | done: `country=BR`, "Brazil (all biomes)" in the area picker |
+| 3 | No named administrative areas (states, municipalities, conservation units, indigenous lands) | open: needs a boundary dataset |
+| 4 | No alert routes (issue, store, deliver, read state) | open: needs product decisions; Alert Center and the bell stay empty |
+| 5 | Anomaly Alerts needed 12 requests (about 20 s) | done: `/history/anomalies`, about 2 s, with Brazil and the month in progress |
+| 6 | Analytics took about 2 s per request | done: per-area series cache warmed at start-up, tens of milliseconds |
+| 7 | `value_interval` always null | done for `series=harmonized` (low = high while MODIS covers every day) |
+| 8 | `/history/map` answered 413 above 20,000 cells | done: `cell_degrees`, the front asks for `auto` |
+| 9 | `/fires/live` does not filter by biome or area | open: the live routes are in the frozen real-time part |
+| 10 | Forecast listed per cell only | done: `/forecast/summary` per biome and Brazil |
 
 Automated service tests use simulated transport; end-to-end validation requires a running backend.

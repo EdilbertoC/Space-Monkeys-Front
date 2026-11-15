@@ -25,7 +25,8 @@ export default function FireMapPanel({
   const [series, setSeries] = useState<Series>("harmonized");
   const [showLive, setShowLive] = useState(true);
   const map = useApi(
-    (signal) => historyApi.getMap({ ...areaSelector(area), ...period }, { signal }),
+    (signal) =>
+      historyApi.getMap({ ...areaSelector(area), ...period, cell_degrees: "auto" }, { signal }),
     [areaKey(area), period.start, period.end],
   );
   const live = useApi(showLive ? (signal) => liveApi.getFires(undefined, { signal }) : null, [
@@ -45,7 +46,7 @@ export default function FireMapPanel({
     <section className="panel hw-map-panel">
       <PanelTitle
         title="Fire map"
-        subtitle={`${areaLabel(area)} · ${longDate(period.start)} – ${longDate(period.end)} UTC. Each square is a 0.1° cell coloured by its fire cell-days in the period.`}
+        subtitle={`${areaLabel(area)} · ${longDate(period.start)} – ${longDate(period.end)} UTC. Each square is a ${map.data ? `${map.data.grid_degrees}°` : "0.1°"} cell coloured by its fire cell-days in the period${map.data && map.data.grid_degrees > 0.1 ? " (the sum of its 0.1° cells; the area is too large for 0.1°)" : ""}.`}
       >
         <div className="segmented" role="group" aria-label="Map series">
           {(["harmonized", "modis", "viirs"] as const).map((s) => (

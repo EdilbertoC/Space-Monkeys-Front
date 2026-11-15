@@ -44,7 +44,8 @@ export function AreaPicker({
     north: "-17.5",
   });
   const [bboxError, setBboxError] = useState<string | null>(null);
-  const current = value.kind === "biome" ? value.biome : "__bbox";
+  const current =
+    value.kind === "biome" ? value.biome : value.kind === "country" ? "__brazil" : "__bbox";
 
   const applyBbox = () => {
     try {
@@ -69,9 +70,14 @@ export function AreaPicker({
         icon="target"
         value={current}
         onChange={(v) =>
-          v === "__bbox" ? applyBbox() : onChange({ kind: "biome", biome: v as Biome })
+          v === "__bbox"
+            ? applyBbox()
+            : v === "__brazil"
+              ? onChange({ kind: "country", country: "BR" })
+              : onChange({ kind: "biome", biome: v as Biome })
         }
       >
+        <option value="__brazil">Brazil (all biomes)</option>
         {meta.biomes.map((b) => (
           <option key={b.name} value={b.name}>
             {`${b.name} biome`}

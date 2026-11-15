@@ -9,7 +9,7 @@ import {
   periodDays,
 } from "../src/features/history/model/area.ts";
 import { granularityFor, seriesTotal } from "../src/features/history/model/period.ts";
-import { classifyMonths } from "../src/features/history/model/anomaly-scan.ts";
+import { flaggedMonths, scanRows } from "../src/features/history/model/anomaly-scan.ts";
 import { latToY, lonToX, viewBoxFor, BRAZIL_BOUNDS } from "../src/shared/geo/projection.ts";
 import { resolveObservationPeriod } from "../src/features/history/date-selection/date-range.ts";
 import { SENSOR_IDS, SENSOR_METADATA } from "../src/features/sensors/sensors.ts";
@@ -33,6 +33,8 @@ test("area selectors send exactly one selector", () => {
     areaKey({ kind: "biome", biome: "Pantanal" }),
     areaKey({ kind: "biome", biome: "Cerrado" }),
   );
+  assert.deepEqual(areaSelector({ kind: "country", country: "BR" }), { country: "BR" });
+  assert.equal(areaLabel({ kind: "country", country: "BR" }), "Brazil (all biomes)");
 });
 
 test("periods are inclusive UTC ranges", () => {
@@ -63,25 +65,68 @@ test("series totals skip missing buckets and never add sensors together", () => 
   );
 });
 
-test("months are flagged against the normal band, and partial months are not compared", () => {
-  const normal = Array.from({ length: 12 }, (_, i) => ({
-    index: i + 1,
-    label: "",
-    median: 10,
-    p10: 5,
-    p90: 20,
-    mean: 10,
-  }));
-  const buckets = [
-    bucket("2026-01-01", "2026-01-31", { harmonized: 25, modis: 25, viirs: 60 }),
-    bucket("2026-02-01", "2026-02-28", { harmonized: 2, modis: 2, viirs: 4 }),
-    bucket("2026-03-01", "2026-03-31", { harmonized: 12, modis: 12, viirs: 30 }),
-    bucket("2026-04-01", "2026-04-14", { harmonized: 40, modis: 40, viirs: 90 }),
-  ];
-  const months = classifyMonths(2026, buckets, normal);
+test("the anomaly scan becomes twelve months per area, records and above first", () => {
+  const month = (m, extra) => ({
+    start: `2026-${m}-01`,
+    end: `2026-${m}-28`,
+    partial: false,
+    ...extra,
+  });
+  const scan = {
+    unit: "fire_cell_days",
+    series: "harmonized",
+    year: 2026,
+    base_years: [2003, 2025],
+    areas: [
+      {
+        area: { kind: "biome", biome: "Caatinga", cells: 7104 },
+        months: [
+          month("01", {
+            value: 30,
+            normal: { median: 10, p10: 5, p90: 20 },
+            ratio_to_median: 3,
+            class: "above",
+          }),
+          month("02", {
+            value: 50,
+            normal: { median: 10, p10: 5, p90: 20 },
+            ratio_to_median: 5,
+            class: "record",
+          }),
+          month("03", { class: null, reason: "fewer than 3 base years" }),
+          {
+            ...month("04", {
+              value: 4,
+              normal: { median: 10, p10: 5, p90: 20 },
+              ratio_to_median: 0.4,
+              class: "below",
+            }),
+            partial: true,
+          },
+        ],
+      },
+      { area: { kind: "country", country: "BR", cells: 71049 }, months: [] },
+    ],
+  };
+  const rows = scanRows(scan);
   assert.deepEqual(
-    months.slice(0, 5).map((m) => m.status),
-    ["above", "below", "within", "partial", "nodata"],
+    rows.map((r) => r.name),
+    ["Caatinga", "Brazil"],
+  );
+  assert.deepEqual(rows[1].area, { kind: "country", country: "BR" });
+  assert.equal(rows[0].months.length, 12);
+  assert.deepEqual(
+    rows[0].months.slice(0, 5).map((m) => m.status),
+    ["above", "record", "nodata", "below", "nodata"],
+  );
+  assert.equal(rows[0].months[2].reason, "fewer than 3 base years");
+  assert.equal(rows[0].months[3].partial, true);
+  assert.deepEqual(
+    flaggedMonths(rows).map((m) => [m.name, m.month, m.status]),
+    [
+      ["Caatinga", 2, "record"],
+      ["Caatinga", 1, "above"],
+    ],
   );
 });
 

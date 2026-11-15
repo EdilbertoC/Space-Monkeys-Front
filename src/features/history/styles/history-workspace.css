@@ -597,8 +597,13 @@ button.hw-day:focus-visible {
   color: #0e151c;
   background: var(--hw-l0);
 }
-.hw-mcell.within {
+.hw-mcell.within,
+.hw-mcell.normal {
   background: #2c4a44;
+}
+.hw-mcell.record {
+  background: #ffffff;
+  font-weight: 700;
 }
 .hw-mcell.above {
   background: var(--hw-l5);
@@ -607,7 +612,7 @@ button.hw-day:focus-visible {
   background: #4f7ea3;
 }
 .hw-mcell.partial {
-  background: repeating-linear-gradient(135deg, transparent 0 3px, #8498a844 3px 4px);
+  background-image: repeating-linear-gradient(135deg, transparent 0 3px, #0e151c66 3px 5px);
 }
 .hw-mcell.nodata {
   background: transparent;

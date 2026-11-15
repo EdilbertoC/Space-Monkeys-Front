@@ -11,6 +11,7 @@ import { areaKey, areaSelector, periodDays, type AreaChoice } from "../model/are
 import {
   ANOMALY_LABEL,
   bucketValue,
+  formatInterval,
   formatValue,
   longDate,
   SERIES_LABEL,
@@ -69,9 +70,13 @@ export function PeriodKpis({ area, period }: { area: AreaChoice; period: Period 
             <>
               <strong className={`hw-big hw-class-${a.class}`}>{ANOMALY_LABEL[a.class]}</strong>
               <small>
-                {formatValue(a.value)} vs median {formatValue(a.normal.median)} (p10–p90{" "}
-                {formatValue(a.normal.p10)}–{formatValue(a.normal.p90)}) for the same dates in{" "}
-                {a.base_years[0]}–{a.base_years[1]}
+                {formatValue(a.value)}
+                {formatInterval(a.value_interval)
+                  ? ` (${formatInterval(a.value_interval)})`
+                  : ""}{" "}
+                vs median {formatValue(a.normal.median)} (p10–p90 {formatValue(a.normal.p10)}–
+                {formatValue(a.normal.p90)}) for the same dates in {a.base_years[0]}–
+                {a.base_years[1]}
               </small>
             </>
           )}
