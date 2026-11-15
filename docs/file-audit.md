@@ -2,9 +2,9 @@
 
 ## Findings
 
-All 74 files under `src` have a documented purpose: 65 are reachable through application imports, eight belong to the planned backend integration, and one supplies TypeScript declarations. No unresolved relative imports or unreferenced source files were found. Reachability includes type imports and lazy imports; it does not mean every module executes on initial load.
+All 65 files under `src` have a documented purpose: 63 are reachable through application imports (the Burning Calendar page now uses the backend integration), one is used only by tests, and one supplies TypeScript declarations. No unresolved relative imports or unreferenced source files were found. Reachability includes type imports and lazy imports; it does not mean every module executes on initial load.
 
-No application file was deleted. Removing files solely because the backend connection is not active would discard the agreed integration work. Conversely, the eight integration files are not presented as necessary to display the current demonstration.
+The illustrative burning calendar (`BurningActivityCalendar` and the components and stylesheets only it used) was removed when the Burning Calendar page was connected to the `/history` API (`HistoryWorkspace`).
 
 Run `npm run files:audit` for a summary, or `npm run files:audit -- --json` for the full inventory. The script checks local module references, including test imports, using the existing TypeScript dependency. It exits unsuccessfully if it finds an unresolved local import or an unreferenced source file. Future entrypoints are explicitly listed rather than automatically treating every file as planned work.
 
@@ -62,24 +62,17 @@ No backend route, response format, satellite value, CSS rule, or visual identity
 
 | File | Referenced by |
 | --- | --- |
-| src/app/api.ts | backend integration |
+| src/app/api.ts | application |
 | src/app/App.tsx | application |
 | src/app/components/AboutDialog.tsx | application |
 | src/app/components/ObservationKpis.tsx | application |
 | src/app/components/WorkspaceSidebar.tsx | application |
 | src/app/components/WorkspaceTopbar.tsx | application |
 | src/app/navigation.ts | application |
-| src/features/history/api/history.ts | backend integration |
+| src/features/history/api/history.ts | application |
 | src/features/history/components/ActivityTimeline.tsx | application |
 | src/features/history/components/AnomalyAlerts.tsx | application |
-| src/features/history/components/BurningActivityCalendar.tsx | application |
-| src/features/history/components/CalendarDayDetail.tsx | application |
-| src/features/history/components/CalendarFilter.tsx | application |
-| src/features/history/components/CalendarInsights.tsx | application |
-| src/features/history/components/CalendarMonthlyComparison.tsx | application |
-| src/features/history/components/ExplorerHistory.tsx | application |
-| src/features/history/components/HarmonizedCalendar.tsx | application |
-| src/features/history/components/PriorityAnomalyTable.tsx | application |
+| src/features/history/components/HistoryWorkspace.tsx | application |
 | src/features/history/components/RecentActivityTable.tsx | application |
 | src/features/history/date-selection/date-calendar.css | application |
 | src/features/history/date-selection/date-range.ts | application |
@@ -87,16 +80,14 @@ No backend route, response format, satellite value, CSS rule, or visual identity
 | src/features/history/demo/calendar-data.ts | application |
 | src/features/history/demo/demo-data.ts | application |
 | src/features/history/demo/exploration.ts | application |
-| src/features/history/demo/harmonized-preview.ts | application |
+| src/features/history/demo/harmonized-preview.ts | tests only |
 | src/features/history/demo/priority-scenarios.ts | application |
 | src/features/history/demo/recent-activity.ts | application |
 | src/features/history/demo/region-factors.ts | application |
-| src/features/history/model/calendar-presentation.ts | application |
-| src/features/history/styles/calendar.css | application |
+| src/features/history/model/history-view.ts | application |
 | src/features/history/styles/exploration.css | application |
-| src/features/history/styles/harmonized-calendar.css | application |
-| src/features/history/styles/priority-anomalies.css | application |
-| src/features/live/api/live.ts | backend integration |
+| src/features/history/styles/history-workspace.css | application |
+| src/features/live/api/live.ts | application |
 | src/features/map/components/FireMap.tsx | application |
 | src/features/map/components/HotspotTooltip.tsx | application |
 | src/features/map/components/MapAreaSelection.tsx | application |
@@ -121,12 +112,12 @@ No backend route, response format, satellite value, CSS rule, or visual identity
 | src/features/sensors/sensors.css | application |
 | src/features/sensors/sensors.ts | application |
 | src/features/settings/WorkspaceSettings.tsx | application |
-| src/features/system/api/system.ts | backend integration |
+| src/features/system/api/system.ts | application |
 | src/main.tsx | application |
-| src/shared/api/generated/schema.ts | backend integration |
-| src/shared/api/http.ts | backend integration |
-| src/shared/api/types.ts | backend integration |
-| src/shared/api/useApiResource.ts | backend integration |
+| src/shared/api/generated/schema.ts | application |
+| src/shared/api/http.ts | application |
+| src/shared/api/types.ts | application |
+| src/shared/api/useApiResource.ts | application |
 | src/shared/constants/geography.ts | application |
 | src/shared/lib/download-csv.ts | application |
 | src/shared/lib/format-count.ts | application |

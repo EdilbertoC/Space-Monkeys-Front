@@ -44,7 +44,6 @@ import { CALENDAR_CUTOFF, type CalendarScope } from "../features/history/demo/ca
 import {
   getDemoAnomalies,
   latestDemoYear,
-  type AreaSelection,
   type DemoAnomaly,
 } from "../features/history/demo/exploration";
 import AlertCenter from "../features/prevention-demo/AlertCenter";
@@ -56,9 +55,7 @@ import { usePrevention } from "../features/prevention-demo/usePrevention";
 import "../features/prevention-demo/prevention.css";
 import "../features/history/styles/exploration.css";
 
-const BurningActivityCalendar = lazy(
-  () => import("../features/history/components/BurningActivityCalendar"),
-);
+const HistoryWorkspace = lazy(() => import("../features/history/components/HistoryWorkspace"));
 
 const TOAST_DURATION_MS = 4000;
 
@@ -86,15 +83,9 @@ function OrbitBurn() {
     kind: "Global",
     name: "Global",
   });
-  const [area, setArea] = useState<AreaSelection | null>(null);
   const setRegion = (name: string) => {
     updateRegion(name);
     updateCalendarScope({ kind: name === "Global" ? "Global" : "Continent", name });
-    setArea(null);
-  };
-  const setCalendarScope = (scope: CalendarScope) => {
-    updateCalendarScope(scope);
-    updateRegion(scope.kind === "Continent" ? scope.name : "Global");
   };
   const [sensor, setSensor] = useState<SensorSelection>("ALL");
   const [period, updatePeriod] = useState(DEFAULT_DATES);
@@ -253,7 +244,7 @@ function OrbitBurn() {
               </div>
             )}
           </header>
-          <DataStatus />
+          {page !== "Burning Calendar" && <DataStatus />}
           {(page === "Overview" || isPreventionPage) && (
             <PreventionToolbar controller={prevention} periodControl={page !== "Alert Center"} />
           )}
@@ -356,22 +347,11 @@ function OrbitBurn() {
             <Suspense
               fallback={
                 <section className="panel calendar-loading" role="status">
-                  Loading the illustrative calendar archive…
+                  Loading the burning activity calendar…
                 </section>
               }
             >
-              <BurningActivityCalendar
-                onNotify={notify}
-                onInfo={() => setInfo(true)}
-                period={period}
-                onPeriodChange={setPeriod}
-                sensor={sensor}
-                onSensorChange={setSensor}
-                scope={calendarScope}
-                onScopeChange={setCalendarScope}
-                area={area}
-                onAreaChange={setArea}
-              />
+              <HistoryWorkspace />
             </Suspense>
           )}
           {page === "Historical Analysis" && (

@@ -72,7 +72,7 @@ export interface paths {
         };
         /**
          * The normal year for an area (median and 10th–90th percentile band)
-         * @description For each week (or month) of the year, the distribution of fire cell-days over the base years. This is the "normal" the calendar is compared to.
+         * @description For each week (or month) of the year, the distribution of fire cell-days over the complete base years. This is the "normal" the calendar is compared to. Week labels use a non-leap year.
          */
         get: operations["getClimatology"];
         put?: never;
@@ -218,9 +218,63 @@ export interface paths {
          * @description `text/event-stream`. Events:
          *     - `snapshot`: data is a `FireCollection` (with `updated_at`).
          *     - `pulse`: data is a `Pulse`.
+         *     - `forecast`: data is a `ForecastAnchored`, sent when the forecast is
+         *       re-anchored on the live fires (re-fetch `GET /forecast`).
          *     - comment lines `: ping` keep idle connections open.
          */
         get: operations["streamFires"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/forecast": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Probability of fire per 0.25° cell for the next 7 days (lead 1 = today)
+         * @description Base forecast: a U-Net turns the last 30 days of VIIRS S-NPP NRT fire maps
+         *     into, for every 0.25° cell of Brazil, the probability of at least one VIIRS
+         *     fire detection on each of the next 7 days. It is issued for the last complete
+         *     UTC day (`issued_for`), so `valid_dates[0]` is today. Recomputed every
+         *     `FORECAST_REFRESH_HOURS`.
+         *     Real-time anchor: after every pulse, a cell with a live fused fire seen in the
+         *     last `FORECAST_ANCHOR_HOURS` is raised to at least
+         *     confidence × P(fire persists j days) from the day it was seen; such cells have
+         *     `anchored: true`. The anchor never lowers the model's forecast.
+         *     Only cells inside the forecast mask (or anchored) and reaching `min_p` on some
+         *     day are listed. Model card: `GET /forecast/model`.
+         */
+        get: operations["getForecast"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/forecast/model": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Forecast model card
+         * @description The model's `meta.json` (data, training/validation/test periods, inputs,
+         *     test average precision and Brier score against climatology and persistence,
+         *     persistence table) plus `status`.
+         */
+        get: operations["getForecastModel"];
         put?: never;
         post?: never;
         delete?: never;
@@ -278,12 +332,25 @@ export interface components {
          * @enum {string}
          */
         Series: "harmonized" | "modis" | "viirs";
-        /** @description A harmonized estimate with its 90% interval. */
+        /**
+         * @description A harmonized number with its 90% interval. From the MODIS source it is the
+         *     observed count (low = high = value). From the VIIRS estimate it is an
+         *     expected count: the sum over cell-days of P(MODIS would have detected fire)
+         *     times the coverage-gap factor, so not an integer.
+         */
         Interval: {
+            /** @description Fire cell-days, MODIS-equivalent. */
             value: number;
+            /** @description 5th percentile. */
             low: number;
+            /** @description 95th percentile. */
             high: number;
         };
+        /**
+         * @description Where a harmonized value comes from; `mixed` when a bucket spans the switch.
+         * @enum {string}
+         */
+        HarmonizedSource: "modis" | "viirs_estimate" | "mixed";
         Period: {
             /** Format: date */
             start: string;
@@ -343,6 +410,22 @@ export interface components {
             harmonization: {
                 /** @enum {string} */
                 status: "pending" | "available";
+                /** @description One-line description of how the harmonized series is built. */
+                method?: string | null;
+                /**
+                 * Format: date
+                 * @description First day served from the VIIRS estimate instead of MODIS; null while MODIS is used throughout.
+                 */
+                switch_date?: string | null;
+                /** @description VIIRS satellite behind the estimate, per period. */
+                viirs_satellites?: {
+                    /** @enum {string} */
+                    name: "SNPP" | "N20" | "N21";
+                    /** Format: date */
+                    start: string;
+                    /** Format: date */
+                    end: string | null;
+                }[];
                 model?: string | null;
                 version?: string | null;
                 /** @description Held-out scores of the model in use (bias, monthly WAPE...), when available. */
@@ -379,7 +462,10 @@ export interface components {
             /** Format: date */
             end: string;
             harmonized: components["schemas"]["Interval"] | null;
+            harmonized_source?: components["schemas"]["HarmonizedSource"] | null;
+            /** @description Observed MODIS fire cell-days. */
             modis: number | null;
+            /** @description Observed VIIRS fire cell-days (any satellite). */
             viirs: number | null;
             provisional: boolean;
         };
@@ -485,8 +571,17 @@ export interface components {
                 lat: number;
                 /** @description Cell centre. */
                 lon: number;
+                /**
+                 * @description MODIS-equivalent fire cell-days in this cell. From the VIIRS
+                 *     estimate it is an expected count (not an integer); the coverage gap
+                 *     of small fires VIIRS never sees cannot be located, so it is spread over
+                 *     the cells where VIIRS saw activity. Per-cell values are much less
+                 *     certain than area totals.
+                 */
                 harmonized: number | null;
+                /** @description Observed MODIS fire cell-days. */
                 modis: number | null;
+                /** @description Observed VIIRS fire cell-days. */
                 viirs: number | null;
             }[];
         };
@@ -562,6 +657,62 @@ export interface components {
             /** @description fire_id values no longer live. */
             removed: string[];
         };
+        Forecast: {
+            model: string;
+            /**
+             * Format: date
+             * @description Last complete UTC day of input data.
+             */
+            issued_for: string;
+            /** @description The days the probabilities are for, one per lead (lead 1 = issued_for + 1). */
+            valid_dates: string[];
+            /** Format: date-time */
+            generated_at: string;
+            /** Format: date-time */
+            anchored_at: string | null;
+            resolution_deg: number;
+            min_p: number;
+            cells: {
+                /** @description Cell centre. */
+                lat: number;
+                /** @description Cell centre. */
+                lon: number;
+                /** @description Probability of at least one VIIRS fire detection, one per valid date. */
+                p: number[];
+                /** @description Raised by a live fire seen recently. */
+                anchored: boolean;
+            }[];
+        };
+        /** @description The model card (models/fire_forecast_brazil/meta.json) plus status. */
+        ForecastModel: {
+            model: string;
+            description?: string;
+            train_period?: string[];
+            validation_period?: string[];
+            test_period?: string[];
+            resolution_deg?: number;
+            leads?: number;
+            test_avg_precision?: {
+                [key: string]: number;
+            };
+            test_brier?: {
+                [key: string]: number;
+            };
+            status: {
+                /** Format: date */
+                issued_for?: string | null;
+                last_error?: string | null;
+            };
+        } & {
+            [key: string]: unknown;
+        };
+        ForecastAnchored: {
+            /** Format: date */
+            issued_for: string;
+            /** Format: date-time */
+            anchored_at: string;
+            anchored_cells: number;
+        };
         Status: {
             worker: {
                 enabled?: boolean;
@@ -625,6 +776,15 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
+        /** @description The historical table is not built on this server (`python -m pipeline.serving`). */
+        HistoryUnavailable: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
         /** @description area_id was not created by POST /history/areas (or has expired). */
         UnknownArea: {
             headers: {
@@ -663,7 +823,7 @@ export interface components {
         start: string;
         /** @example 2020-10-31 */
         end: string;
-        /** @description Which series to compute on. Defaults to harmonized; until harmonization is available, the server answers `harmonized` requests with 409 and the client should fall back to `modis`. */
+        /** @description Which series to compute on. Defaults to harmonized; until harmonization is available, the server answers `harmonized` requests with 409 and the client should fall back to `modis`. `viirs` is answered with 422 here, because it is not comparable across years. */
         series: components["schemas"]["Series"];
         /** @description First year of the base period for "normal" (default 2003, the first full year with both Terra and Aqua). */
         base_start_year: number;
@@ -694,6 +854,7 @@ export interface operations {
                     "application/json": components["schemas"]["Meta"];
                 };
             };
+            503: components["responses"]["HistoryUnavailable"];
         };
     };
     createArea: {
@@ -720,6 +881,7 @@ export interface operations {
             };
             413: components["responses"]["AreaTooLarge"];
             422: components["responses"]["Invalid"];
+            503: components["responses"]["HistoryUnavailable"];
         };
     };
     getCalendar: {
@@ -759,6 +921,7 @@ export interface operations {
             404: components["responses"]["UnknownArea"];
             413: components["responses"]["AreaTooLarge"];
             422: components["responses"]["Invalid"];
+            503: components["responses"]["HistoryUnavailable"];
         };
     };
     getClimatology: {
@@ -773,7 +936,7 @@ export interface operations {
                 biome?: components["parameters"]["biome"];
                 /** @description Id returned by POST /history/areas. */
                 area_id?: components["parameters"]["area_id"];
-                /** @description Which series to compute on. Defaults to harmonized; until harmonization is available, the server answers `harmonized` requests with 409 and the client should fall back to `modis`. */
+                /** @description Which series to compute on. Defaults to harmonized; until harmonization is available, the server answers `harmonized` requests with 409 and the client should fall back to `modis`. `viirs` is answered with 422 here, because it is not comparable across years. */
                 series?: components["parameters"]["series"];
                 /** @description First year of the base period for "normal" (default 2003, the first full year with both Terra and Aqua). */
                 base_start_year?: components["parameters"]["base_start_year"];
@@ -801,6 +964,7 @@ export interface operations {
             409: components["responses"]["HarmonizationPending"];
             413: components["responses"]["AreaTooLarge"];
             422: components["responses"]["Invalid"];
+            503: components["responses"]["HistoryUnavailable"];
         };
     };
     getAnomaly: {
@@ -819,7 +983,7 @@ export interface operations {
                 start: components["parameters"]["start"];
                 /** @example 2020-10-31 */
                 end: components["parameters"]["end"];
-                /** @description Which series to compute on. Defaults to harmonized; until harmonization is available, the server answers `harmonized` requests with 409 and the client should fall back to `modis`. */
+                /** @description Which series to compute on. Defaults to harmonized; until harmonization is available, the server answers `harmonized` requests with 409 and the client should fall back to `modis`. `viirs` is answered with 422 here, because it is not comparable across years. */
                 series?: components["parameters"]["series"];
                 /** @description First year of the base period for "normal" (default 2003, the first full year with both Terra and Aqua). */
                 base_start_year?: components["parameters"]["base_start_year"];
@@ -846,6 +1010,7 @@ export interface operations {
             409: components["responses"]["HarmonizationPending"];
             413: components["responses"]["AreaTooLarge"];
             422: components["responses"]["Invalid"];
+            503: components["responses"]["HistoryUnavailable"];
         };
     };
     getSeason: {
@@ -861,7 +1026,7 @@ export interface operations {
                 /** @description Id returned by POST /history/areas. */
                 area_id?: components["parameters"]["area_id"];
                 year: number;
-                /** @description Which series to compute on. Defaults to harmonized; until harmonization is available, the server answers `harmonized` requests with 409 and the client should fall back to `modis`. */
+                /** @description Which series to compute on. Defaults to harmonized; until harmonization is available, the server answers `harmonized` requests with 409 and the client should fall back to `modis`. `viirs` is answered with 422 here, because it is not comparable across years. */
                 series?: components["parameters"]["series"];
                 /** @description First year of the base period for "normal" (default 2003, the first full year with both Terra and Aqua). */
                 base_start_year?: components["parameters"]["base_start_year"];
@@ -888,6 +1053,7 @@ export interface operations {
             409: components["responses"]["HarmonizationPending"];
             413: components["responses"]["AreaTooLarge"];
             422: components["responses"]["Invalid"];
+            503: components["responses"]["HistoryUnavailable"];
         };
     };
     getTrend: {
@@ -902,7 +1068,7 @@ export interface operations {
                 biome?: components["parameters"]["biome"];
                 /** @description Id returned by POST /history/areas. */
                 area_id?: components["parameters"]["area_id"];
-                /** @description Which series to compute on. Defaults to harmonized; until harmonization is available, the server answers `harmonized` requests with 409 and the client should fall back to `modis`. */
+                /** @description Which series to compute on. Defaults to harmonized; until harmonization is available, the server answers `harmonized` requests with 409 and the client should fall back to `modis`. `viirs` is answered with 422 here, because it is not comparable across years. */
                 series?: components["parameters"]["series"];
                 start_year?: number;
                 end_year?: number;
@@ -927,6 +1093,7 @@ export interface operations {
             409: components["responses"]["HarmonizationPending"];
             413: components["responses"]["AreaTooLarge"];
             422: components["responses"]["Invalid"];
+            503: components["responses"]["HistoryUnavailable"];
         };
     };
     getMap: {
@@ -965,6 +1132,7 @@ export interface operations {
             404: components["responses"]["UnknownArea"];
             413: components["responses"]["AreaTooLarge"];
             422: components["responses"]["Invalid"];
+            503: components["responses"]["HistoryUnavailable"];
         };
     };
     getLiveFires: {
@@ -1040,6 +1208,73 @@ export interface operations {
                 };
                 content: {
                     "text/event-stream": string;
+                };
+            };
+        };
+    };
+    getForecast: {
+        parameters: {
+            query?: {
+                /** @description Only cells reaching this probability on any day. */
+                min_p?: number;
+                /**
+                 * @description Area as west,south,east,north in degrees (WGS84). History routes need exactly one of bbox, biome, area_id.
+                 * @example -58,-19,-56,-17
+                 */
+                bbox?: components["parameters"]["bbox"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The current forecast. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Forecast"];
+                };
+            };
+            422: components["responses"]["Invalid"];
+            /** @description The forecast is disabled, or none has been issued yet (needs `FIRMS_MAP_KEY`). */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getForecastModel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Model card. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForecastModel"];
+                };
+            };
+            /** @description The forecast is disabled. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
                 };
             };
         };

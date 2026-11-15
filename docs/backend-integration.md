@@ -70,4 +70,4 @@ Replace the state with the received `snapshot`. For pulses, use `applyPulse(prev
 
 ## Current limitations
 
-The demonstration screens are not yet connected to the services. The contract marks `/history/*` as planned and does not guarantee that these routes are already available. Automated service tests use simulated transport; end-to-end validation requires a running backend.
+The Burning Calendar page (`features/history/components/HistoryWorkspace.tsx`) reads `/history/meta`, `/calendar`, `/climatology`, `/anomaly`, `/season` and `/trend` from the API; the other screens still use demonstration fixtures. The API must allow the front origin in `CORS_ORIGINS` (`http://localhost:8443` in development). Automated service tests use simulated transport; end-to-end validation requires a running backend.
