@@ -1,0 +1,78 @@
+/* Territory page: trend, before/after a decision, reference area. */
+.territory .tr-label input {
+  width: 190px;
+  padding: 6px 8px;
+  border: var(--border-thin) solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--surface-inset);
+  color: var(--text-primary);
+  font-size: var(--text-small);
+  text-transform: none;
+  letter-spacing: 0;
+}
+.territory .tr-label input:focus {
+  outline: none;
+  border-color: var(--orange);
+}
+.territory .tr-after {
+  fill: var(--orange);
+  opacity: 0.07;
+}
+.territory .tr-decision {
+  stroke: var(--orange);
+  stroke-width: 1.2;
+  stroke-dasharray: 3 3;
+}
+.territory .tr-decision-label {
+  fill: var(--orange);
+  font-size: 9px;
+}
+.territory .tr-band {
+  fill: var(--text-primary);
+  opacity: 0.14;
+}
+.territory .tr-trend {
+  stroke: var(--text-secondary);
+  stroke-width: 1.2;
+  stroke-dasharray: 5 4;
+}
+.territory .tr-median {
+  stroke: var(--orange);
+  stroke-width: 1.4;
+}
+.territory .hw-line.tr-ref {
+  stroke: var(--green);
+  stroke-width: 1.6;
+}
+.territory .hw-swatch.line.tr-ref {
+  border-color: var(--green);
+}
+.territory .hw-swatch.line.tr-trend {
+  border-color: var(--text-secondary);
+  border-top-style: dashed;
+}
+.territory .hw-swatch.line.tr-median {
+  border-color: var(--orange);
+}
+.territory .tr-dot {
+  fill: var(--text-primary);
+  stroke: var(--text-primary);
+  stroke-width: 1.2;
+}
+.territory .tr-dot.estimated {
+  fill: var(--panel);
+}
+.territory .tr-hollow {
+  color: var(--text-subtle);
+}
+.territory .tr-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  padding: var(--space-md) var(--space-lg);
+}
+.territory .tr-actions .hw-button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+}

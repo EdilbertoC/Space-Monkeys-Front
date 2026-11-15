@@ -1,11 +1,11 @@
 export const pages = [
   { name: "Overview", icon: "grid" },
+  { name: "Territory", icon: "target" },
   { name: "Fire Map", icon: "globe" },
   { name: "Burning Calendar", icon: "calendar" },
   { name: "Historical Analysis", icon: "chart" },
   { name: "Anomaly Alerts", icon: "alert" },
   { name: "Risk Forecast", icon: "chart" },
-  { name: "Alert Center", icon: "bell" },
   { name: "Data Sources", icon: "layers" },
   { name: "Settings", icon: "settings" },
 ] as const;
@@ -14,6 +14,10 @@ export const titles: Record<WorkspacePage, [string, string]> = {
   Overview: [
     "Monitoring Overview",
     "Fire activity in the selected area and period, live fires and the 7-day outlook.",
+  ],
+  Territory: [
+    "Territory: is fire going up or down?",
+    "Yearly fire activity of an area, the long-term trend and what changed after a decision, against a reference.",
   ],
   "Fire Map": [
     "Fire Map",
@@ -35,7 +39,6 @@ export const titles: Record<WorkspacePage, [string, string]> = {
     "7-Day Fire Forecast",
     "Probability of a VIIRS fire detection per 0.25° cell for the next seven days.",
   ],
-  "Alert Center": ["Alert Center", "Advisories issued by the backend."],
   "Data Sources": ["Satellite Data Sources", "Understand the sensors behind the observations."],
   Settings: ["Workspace Settings", "Make OrbitBurn work for your mission."],
 };

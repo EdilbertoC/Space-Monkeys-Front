@@ -14,17 +14,19 @@ import { DEFAULT_AREA, lastDays, type AreaChoice } from "../features/history/mod
 import { coverageEnd, longDate, type Meta } from "../features/history/model/history-view";
 import LiveFiresTable from "../features/live/components/LiveFiresTable";
 import FireMapPanel from "../features/map/components/FireMapPanel";
+import TerritoryPage from "../features/territory/components/TerritoryPage";
 import SatelliteSources from "../features/sensors/SatelliteSources";
 import SensorHarmonization from "../features/sensors/SensorHarmonization";
 import WorkspaceSettings from "../features/settings/WorkspaceSettings";
 import { SourceStatus } from "../features/system/components/SystemStatus";
 import { useApi } from "../shared/api/useApi";
-import { Icon, PanelTitle } from "../shared/ui/ui";
+import { Icon } from "../shared/ui/ui";
 import { historyApi } from "./api";
 import AboutDialog from "./components/AboutDialog";
 import WorkspaceSidebar from "./components/WorkspaceSidebar";
 import WorkspaceTopbar from "./components/WorkspaceTopbar";
-import { titles, type WorkspacePage } from "./navigation";
+import { pages, titles, type WorkspacePage } from "./navigation";
+import { formatArea, parseArea, readParam, writeParams } from "./url-state";
 
 import "../features/history/styles/history-workspace.css";
 
@@ -34,10 +36,17 @@ const TOAST_DURATION_MS = 4000;
 /** Pages that use the shared area and period filters in the header. */
 const FILTERED: WorkspacePage[] = ["Overview", "Fire Map", "Historical Analysis"];
 
+/** Territory is the landing page; a shared link can open any page. */
+function initialPage(): WorkspacePage {
+  const view = readParam("view");
+  return pages.find((p) => p.name === view)?.name ?? "Territory";
+}
+
 export default function App() {
-  const [page, setPage] = useState<WorkspacePage>("Overview");
+  const [page, setPage] = useState<WorkspacePage>(initialPage);
   const meta = useApi((signal) => historyApi.getMeta({ signal }), []);
-  const [area, setArea] = useState<AreaChoice>(DEFAULT_AREA);
+  const [area, setArea] = useState<AreaChoice>(() => parseArea(readParam("area")) ?? DEFAULT_AREA);
+  useEffect(() => writeParams({ view: page, area: formatArea(area) }), [page, area]);
   const [period, setPeriod] = useState<Period | null>(null);
   // Default period: the last 30 days of the record, once the API says where it ends.
   useEffect(() => {
@@ -162,6 +171,9 @@ export default function App() {
               <LiveFiresTable limit={6} />
             </>
           )}
+          {ready && page === "Territory" && (
+            <TerritoryPage meta={ready.meta} area={area} onAreaChange={setArea} />
+          )}
           {ready && page === "Fire Map" && (
             <>
               <FireMapPanel area={area} period={ready.period} large />
@@ -196,7 +208,6 @@ export default function App() {
             />
           )}
           {ready && page === "Risk Forecast" && <ForecastPage />}
-          {ready && page === "Alert Center" && <AlertCenterGap navigate={navigate} />}
           {ready && page === "Data Sources" && (
             <>
               <SourceStatus meta={ready.meta} />
@@ -236,33 +247,5 @@ export default function App() {
       )}
       {info && <AboutDialog onClose={() => setInfo(false)} />}
     </div>
-  );
-}
-
-function AlertCenterGap({ navigate }: { navigate: (page: WorkspacePage) => void }) {
-  return (
-    <section className="panel">
-      <PanelTitle
-        title="No alert feed from the backend yet"
-        subtitle="The API does not issue, store or deliver alerts. Nothing is shown here rather than made-up advisories."
-      />
-      <ul className="hw-facts">
-        <li>
-          Unusual months per biome are computed on request in{" "}
-          <button className="text-link" onClick={() => navigate("Anomaly Alerts")}>
-            Anomaly Alerts
-          </button>
-          .
-        </li>
-        <li>
-          The 7-day probability of fire detection per cell is in{" "}
-          <button className="text-link" onClick={() => navigate("Risk Forecast")}>
-            Risk Forecast
-          </button>
-          .
-        </li>
-        <li>Fires burning now are in the Live fires table on Overview and Fire Map.</li>
-      </ul>
-    </section>
   );
 }
