@@ -11,6 +11,8 @@ import { Icon, PanelTitle } from "../../../shared/ui/ui";
 import { Card, PanelState, describeError } from "../../history/components/HistoryParts";
 import { longDate } from "../../history/model/history-view";
 import { ForecastLayer, GeoMap } from "../../map/components/GeoMap";
+import type { AreaChoice } from "../../history/model/area";
+import OutlookPanel from "./OutlookPanel";
 
 type Forecast = Schemas["Forecast"];
 
@@ -18,7 +20,7 @@ export function useForecast(minP = 0.05) {
   return useApi((signal) => forecastApi.getForecast({ min_p: minP }, { signal }), [minP]);
 }
 
-export default function ForecastPage() {
+export default function ForecastPage({ area }: { area: AreaChoice }) {
   const forecast = useForecast();
   const model = useApi((signal) => forecastApi.getModel({ signal }), []);
   const [lead, setLead] = useState(0);
@@ -75,6 +77,8 @@ export default function ForecastPage() {
           {model.data && <Skill model={model.data} />}
         </Card>
       </div>
+
+      <OutlookPanel area={area} />
 
       <section className="panel hw-map-panel">
         <PanelTitle

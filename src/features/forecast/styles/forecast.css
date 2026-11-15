@@ -1,0 +1,40 @@
+/* SI-assisted: written with Claude (Anthropic), reviewed by the Space Monkeys team. See README. */
+/* Forecast page: the next 7 days against normal (/forecast/outlook). */
+.fo-outlook .fo-headline {
+  display: grid;
+  gap: 4px;
+  padding: 0 var(--space-lg) var(--space-sm);
+}
+.fo-outlook .hw-big.above {
+  color: var(--orange);
+}
+.fo-outlook .hw-big.below {
+  color: #7aa2ff;
+}
+.fo-outlook .fo-bar {
+  fill: var(--text-secondary);
+  opacity: 0.75;
+}
+.fo-outlook .fo-bar.above {
+  fill: var(--orange);
+  opacity: 0.9;
+}
+.fo-outlook .fo-bar.below {
+  fill: #7aa2ff;
+  opacity: 0.85;
+}
+.fo-outlook .fo-normal {
+  stroke: var(--text-primary);
+  stroke-width: 2;
+}
+.fo-outlook .hw-swatch.fo-bar-swatch {
+  width: 10px;
+  height: 10px;
+  background: var(--text-secondary);
+}
+.fo-outlook .hw-swatch.line.fo-normal-swatch {
+  border-color: var(--text-primary);
+}
+.fo-outlook .fo-legend-note {
+  color: var(--text-subtle);
+}

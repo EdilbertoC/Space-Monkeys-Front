@@ -34,7 +34,7 @@ const HistoryWorkspace = lazy(() => import("../features/history/components/Histo
 
 const TOAST_DURATION_MS = 4000;
 /** Pages that use the shared area filter in the header, and those that also use the dates. */
-const FILTERED: WorkspacePage[] = ["Overview", "Fire Map", "Historical Analysis"];
+const FILTERED: WorkspacePage[] = ["Overview", "Fire Map", "Historical Analysis", "Risk Forecast"];
 const DATED: WorkspacePage[] = ["Overview", "Fire Map"];
 
 /** Territory is the landing page; a shared link can open any page. */
@@ -198,7 +198,7 @@ export default function App() {
               }}
             />
           )}
-          {ready && page === "Risk Forecast" && <ForecastPage />}
+          {ready && page === "Risk Forecast" && <ForecastPage area={area} />}
           {ready && page === "Data Sources" && (
             <>
               <SourceStatus meta={ready.meta} />
