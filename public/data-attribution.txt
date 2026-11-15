@@ -1,0 +1,14 @@
+OrbitBurn demo data attribution
+
+World map: Natural Earth public-domain country boundaries, distributed by
+datasets/geo-countries (https://github.com/datasets/geo-countries).
+Geometry is simplified and rendered using an equirectangular projection.
+
+Hotspot coordinates, detection counts, trends, comparisons, and alerts are
+synthetic illustrative data. They are not NASA observations.
+
+MODIS and VIIRS sensor descriptions reference public NASA FIRMS documentation:
+https://firms.modaps.eosdis.nasa.gov/
+
+OrbitBurn is an independent NASA Space Apps Challenge 2026 concept.
+No NASA affiliation, endorsement, or live data connection is implied.

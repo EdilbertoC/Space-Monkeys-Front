@@ -1,0 +1,13 @@
+{
+  "semi": true,
+  "singleQuote": false,
+  "tabWidth": 2,
+  "printWidth": 100,
+  "ignorePatterns": [
+    "src/shared/api/generated/**",
+    "src/features/map/demo/map-data.json",
+    "contracts/**",
+    "package-lock.json",
+    "**/*.css"
+  ]
+}
