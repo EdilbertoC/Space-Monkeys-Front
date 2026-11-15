@@ -75,6 +75,7 @@ export function GeoMap({
   drawing = false,
   onBoxDrawn,
   selection = null,
+  minSpan = 16,
 }: {
   bounds?: Bounds;
   label: string;
@@ -86,11 +87,13 @@ export function GeoMap({
   onBoxDrawn?: (box: Bounds) => void;
   /** Outline of the area being analysed. */
   selection?: Bounds | null;
+  /** Smallest span in degrees the initial view shows, so small areas keep some surroundings. */
+  minSpan?: number;
 }) {
   const [sketch, setSketch] = useState<{ x0: number; y0: number; x1: number; y1: number } | null>(
     null,
   );
-  const base = viewBoxFor(bounds);
+  const base = viewBoxFor(bounds, undefined, minSpan);
   const baseKey = `${base.x},${base.y},${base.width},${base.height}`;
   const [view, setView] = useState<ViewBox>(base);
   const [dragging, setDragging] = useState(false);

@@ -27,7 +27,7 @@ export const labelOf = (page: WorkspacePage): string =>
 export const titles: Record<WorkspacePage, [string, string]> = {
   Territory: [
     "Is fire rising or falling here?",
-    "Fire cell-days per year since 2003, the long-term trend, and how two periods compare. Pick or draw the area on the map.",
+    "Fire cell-days per year since 2003, in the area you pick or draw.",
   ],
   "Burning Calendar": [
     "When does this area burn?",

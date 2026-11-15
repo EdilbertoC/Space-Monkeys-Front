@@ -134,6 +134,31 @@ export const monthsLabel = (m: MonthRange) =>
       ? MONTHS[m.from - 1]!
       : `${MONTHS[m.from - 1]}–${MONTHS[m.to - 1]}`;
 
+const pad2 = (n: number) => String(n).padStart(2, "0");
+
+/**
+ * One date span per year of `range` covering only the month window: Jul–Oct gives
+ * Jul–Oct 2003, Jul–Oct 2004, … A window across the new year (Nov–Mar) counts for the year
+ * it ends in, as windowTotals does. Spans starting after `today` (YYYY-MM-DD) are dropped;
+ * one running past it is cut there.
+ */
+export function monthWindowSpans(
+  range: YearRange,
+  m: MonthRange,
+  today: string,
+): { start: string; end: string }[] {
+  const wraps = m.from > m.to;
+  const spans: { start: string; end: string }[] = [];
+  for (let y = range.from; y <= range.to; y++) {
+    const start = `${wraps ? y - 1 : y}-${pad2(m.from)}-01`;
+    const lastDay = new Date(Date.UTC(y, m.to, 0)).getUTCDate();
+    const end = `${y}-${pad2(m.to)}-${pad2(lastDay)}`;
+    if (start > today) continue;
+    spans.push({ start, end: end > today ? today : end });
+  }
+  return spans;
+}
+
 /** The months a window covers, in order (a wrapping window ends in the next year). */
 export function windowMonths(m: MonthRange): number[] {
   const out: number[] = [];

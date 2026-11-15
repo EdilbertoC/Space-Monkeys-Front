@@ -10,6 +10,7 @@ import {
   mannWhitneyP,
   median,
   monthsLabel,
+  monthWindowSpans,
   parseRange,
   theilSen,
   toCsv,
@@ -145,4 +146,20 @@ test("drift is flagged until a switch date on or before 2022-01-01 removes it", 
   assert.equal(driftYear("2024-01-01"), 2022);
   assert.equal(driftYear("2022-01-01"), null);
   assert.equal(driftYear("2021-06-01"), null);
+});
+
+test("monthWindowSpans: the month window inside every year, never one long span", () => {
+  assert.deepEqual(monthWindowSpans({ from: 2003, to: 2005 }, { from: 7, to: 10 }, "2026-11-15"), [
+    { start: "2003-07-01", end: "2003-10-31" },
+    { start: "2004-07-01", end: "2004-10-31" },
+    { start: "2005-07-01", end: "2005-10-31" },
+  ]);
+  // Across the new year: each window counts for the year it ends in (leap February).
+  assert.deepEqual(monthWindowSpans({ from: 2004, to: 2004 }, { from: 11, to: 2 }, "2026-11-15"), [
+    { start: "2003-11-01", end: "2004-02-29" },
+  ]);
+  // A window not started yet is dropped; one under way is cut at today.
+  assert.deepEqual(monthWindowSpans({ from: 2026, to: 2027 }, { from: 7, to: 12 }, "2026-11-15"), [
+    { start: "2026-07-01", end: "2026-11-15" },
+  ]);
 });
