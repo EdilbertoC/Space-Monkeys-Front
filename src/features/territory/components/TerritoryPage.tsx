@@ -24,6 +24,7 @@ import {
   compareAt,
   decisionYears,
   indexSeries,
+  intervalRuns,
   median,
   splitAt,
   summarize,
@@ -77,7 +78,10 @@ export default function TerritoryPage({
     return Number.isInteger(year) && year > 2000 ? year : null;
   });
   const [decisionLabel, setDecisionLabel] = useState(() => readParam("label")?.slice(0, 40) ?? "");
-  const [referenceKey, setReferenceKey] = useState(() => readParam("ref") ?? BRAZIL);
+  const [referenceKey, setReferenceKey] = useState(() => {
+    const key = readParam("ref");
+    return key !== null && (key === NONE || referenceArea(key)) ? key : BRAZIL;
+  });
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -114,10 +118,15 @@ export default function TerritoryPage({
 
   // With a reference both series share one axis: 100 is the median year before the
   // decision (or the median year overall when no decision is set).
-  const indexed = refArea !== null && ref.length > 0;
+  const wantsIndex = refArea !== null && ref.length > 0;
   const baseYears = effective !== null ? (y: number) => y < effective : undefined;
-  const shownOwn = indexed ? indexSeries(own, baseYears) : own;
-  const shownRef = indexed ? indexSeries(ref, baseYears) : [];
+  const indexedOwn = wantsIndex ? indexSeries(own, baseYears) : [];
+  const indexedRef = wantsIndex ? indexSeries(ref, baseYears) : [];
+  // Indexing divides by a median, so it needs fire in the base years of both series.
+  const indexed = indexedOwn.length > 0 && indexedRef.length > 0;
+  const cannotIndex = wantsIndex && !indexed;
+  const shownOwn = indexed ? indexedOwn : own;
+  const shownRef = indexed ? indexedRef : [];
 
   const ownCmp = effective !== null ? compareAt(own, effective) : null;
   const refCmp = effective !== null && indexed ? compareAt(ref, effective) : null;
@@ -218,8 +227,9 @@ export default function TerritoryPage({
               </strong>
               <small>{trendSentence(t.slope_per_year, t.ci95, t.significant)}</small>
               <small>
-                Theil–Sen on {own.length} complete years, 95% CI {formatValue(t.ci95[0] ?? null)} to{" "}
-                {formatValue(t.ci95[1] ?? null)}.
+                Theil–Sen on {own.length} complete years, 95% CI{" "}
+                {formatValue(noNegativeZero(t.ci95[0]))} to {formatValue(noNegativeZero(t.ci95[1]))}
+                .
               </small>
             </>
           )}
@@ -269,6 +279,13 @@ export default function TerritoryPage({
             the chart shows MODIS observed fire cell-days.
           </p>
         )}
+        {cannotIndex && (
+          <p className="hw-note warn hw-pad">
+            <Icon name="info" size={13} /> This area has no fire cell-days in the median year of the
+            base period, so it cannot be put on one axis with the reference. The chart shows the
+            territory alone.
+          </p>
+        )}
         {refArea && refTrend.status === "error" && (
           <p className="hw-note warn hw-pad">
             <Icon name="info" size={13} /> The reference series could not be loaded, so the chart
@@ -313,6 +330,11 @@ export default function TerritoryPage({
   );
 }
 
+/** 0 − 0 style results can come back as -0, which would print as "-0". */
+function noNegativeZero(value: number | undefined): number | null {
+  return value === undefined ? null : value + 0;
+}
+
 function slug(text: string): string {
   return text
     .toLowerCase()
@@ -337,8 +359,14 @@ function BeforeAfterSummary({
   ref: Comparison | null;
   refName: string | null;
 }) {
-  if (!own.enough || own.changePct === null)
-    return <small>Not enough complete years on each side to compare.</small>;
+  if (!own.enough) return <small>Not enough complete years on each side to compare.</small>;
+  if (own.changePct === null)
+    return (
+      <small>
+        The median year before the decision has no fire, so a percentage change is undefined.
+        Medians: {formatValue(own.before.median)} before, {formatValue(own.after.median)} after.
+      </small>
+    );
   const p = own.p;
   const differs = p !== null && p < 0.05;
   return (
@@ -394,14 +422,7 @@ function TerritoryChart({
   const y = (v: number) => PAD.top + (1 - v / max) * (H - PAD.top - PAD.bottom);
   const path = (pts: YearPoint[]) => pts.map((p) => `${x(p.year)},${y(p.value)}`).join(" ");
 
-  // Runs of consecutive years that carry a 90% interval, drawn as a band.
-  const bands: YearPoint[][] = [];
-  own.forEach((p) => {
-    if (p.low === undefined || p.high === undefined) return;
-    const last = bands.at(-1);
-    if (last && last.at(-1)!.year === p.year - 1) last.push(p);
-    else bands.push([p]);
-  });
+  const bands = intervalRuns(own);
 
   const medians =
     decision !== null

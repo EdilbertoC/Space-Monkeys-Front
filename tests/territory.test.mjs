@@ -5,6 +5,7 @@ import {
   compareAt,
   decisionYears,
   indexSeries,
+  intervalRuns,
   mannWhitneyP,
   median,
   splitAt,
@@ -77,5 +78,22 @@ test("toCsv writes what the API returned and leaves unknown cells empty", () => 
     csv,
     "year,fire_cell_days_pantanal,interval_low_90,interval_high_90,fire_cell_days_brazil\n" +
       "2003,10,,,100\n2004,12,9,15,\n",
+  );
+});
+
+test("intervalRuns groups consecutive estimated years and skips years without an interval", () => {
+  const p = (year, interval) => ({ year, value: 1, ...(interval ? { low: 0, high: 2 } : {}) });
+  const runs = intervalRuns([p(2020), p(2021, true), p(2022, true), p(2023), p(2024, true)]);
+  assert.deepEqual(
+    runs.map((r) => r.map((q) => q.year)),
+    [[2021, 2022], [2024]],
+  );
+  assert.deepEqual(intervalRuns([p(2020), p(2021)]), []);
+});
+
+test("a zero base cannot index a series, so the page must fall back to absolute values", () => {
+  assert.deepEqual(
+    indexSeries(pts([0, 0, 0, 5, 7]), (y) => y < 2006),
+    [],
   );
 });

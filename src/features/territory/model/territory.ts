@@ -162,6 +162,18 @@ export function indexSeries(
   }));
 }
 
+/** Runs of consecutive years that carry a 90% interval (years partly estimated from VIIRS). */
+export function intervalRuns(points: readonly YearPoint[]): YearPoint[][] {
+  const runs: YearPoint[][] = [];
+  for (const p of points) {
+    if (p.low === undefined || p.high === undefined) continue;
+    const last = runs.at(-1);
+    if (last && last.at(-1)!.year === p.year - 1) last.push(p);
+    else runs.push([p]);
+  }
+  return runs;
+}
+
 export interface ExportRow {
   year: number;
   territory: number;
