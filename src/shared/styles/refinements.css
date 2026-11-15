@@ -129,10 +129,10 @@
   align-items: center;
   gap: 9px;
   padding: 0 12px;
-  border: 1px solid #3a4b5d;
+  border: 1px solid #534e44;
   border-radius: var(--control-radius);
-  background: #162331;
-  color: #dce4ed;
+  background: #272420;
+  color: #e7e5e2;
   font-size: var(--type-label);
   font-weight: 450;
   line-height: 1.5;
@@ -152,11 +152,11 @@
   width: 16px;
   height: 16px;
   flex-shrink: 0;
-  color: #9db1c5;
+  color: #b9b3a9;
 }
 .orbit-filter-trigger:hover {
-  border-color: #677b90;
-  background: #1c2d3e;
+  border-color: #887f6f;
+  background: #312e29;
 }
 .orbit-filter-trigger[aria-expanded="true"] {
   border-color: #c89164;
@@ -164,11 +164,11 @@
 .orbit-select-menu,
 .date-calendar-popup {
   z-index: 1000;
-  border: 1px solid #43576a;
+  border: 1px solid #5f594e;
   border-radius: 6px;
-  background: #142231;
+  background: #26231f;
   box-shadow: 0 12px 36px #0007;
-  color: #e4edf5;
+  color: #eeedeb;
   animation: filter-reveal 0.14s ease-out;
 }
 .orbit-select-menu {
@@ -189,7 +189,7 @@
   border-radius: 4px;
 }
 .orbit-select-menu [role="option"].is-active {
-  background: #2a3e51;
+  background: #443f37;
 }
 .orbit-select-menu [aria-selected="true"] {
   color: #ffd3a1;
@@ -263,7 +263,7 @@
   margin: 0 0 22px;
   padding: 10px 0;
   border-bottom: 1px solid var(--border);
-  color: #aabccc;
+  color: #c2bdb4;
 }
 .workspace-data-status summary {
   display: flex;
@@ -276,7 +276,7 @@
 .workspace-data-status summary > small {
   margin-left: auto;
   font-size: var(--type-secondary);
-  color: #8da3b8;
+  color: #aca599;
 }
 .workspace-data-status p {
   max-width: 1000px;
@@ -319,16 +319,16 @@
   flex-wrap: wrap;
   gap: 8px;
   padding: 16px 20px 12px;
-  color: #b4c6d6;
+  color: #cbc7bf;
   font-size: var(--type-secondary);
 }
 .annual-area strong {
-  color: #e0e8ef;
+  color: #eae8e5;
   font-weight: 500;
 }
 .annual-area > span {
   margin-left: auto;
-  color: #92aabd;
+  color: #b0aa9f;
 }
 .annual-months {
   display: grid;
@@ -339,9 +339,9 @@
 .annual-month {
   min-width: 0;
   padding: 14px 12px;
-  border: 1px solid #34485a;
+  border: 1px solid #4e4940;
   border-radius: 6px;
-  background: #14212d;
+  background: #24211d;
   display: flex;
   flex-direction: column;
   gap: 9px;
@@ -349,7 +349,7 @@
 }
 .annual-month:hover,
 .annual-month:focus-visible {
-  background: #1c2d3c;
+  background: #302d28;
   border-color: #af9472;
 }
 .annual-month.selected {
@@ -362,7 +362,7 @@
   justify-content: space-between;
   gap: 8px;
   font-size: var(--type-label);
-  color: #c1d0dd;
+  color: #d4d0ca;
 }
 .annual-month-name i {
   width: 5px;
@@ -379,7 +379,7 @@
   display: block;
   height: 4px;
   border-radius: 2px;
-  background: #2b3948;
+  background: #36332d;
   overflow: hidden;
 }
 .annual-month-track i {
@@ -396,20 +396,20 @@
   background: #e97570;
 }
 .annual-month.level-missing .annual-month-track i {
-  background: repeating-linear-gradient(135deg, #334355 0 3px, #718092 3px 4px);
+  background: repeating-linear-gradient(135deg, #4b463d 0 3px, #8e8575 3px 4px);
 }
 .annual-month.level-missing > strong,
 .annual-month.level-missing .annual-month-name {
-  color: #95a8ba;
+  color: #b0aa9f;
 }
 .annual-month.level-missing .annual-month-name i {
   background: transparent;
-  border: 1px solid #879aac;
+  border: 1px solid #a49c8f;
 }
 .annual-month small {
   font-size: var(--type-secondary);
   line-height: 1.6;
-  color: #a4b7ca;
+  color: #beb9b0;
 }
 .annual-readout {
   display: flex;
@@ -420,7 +420,7 @@
   margin: 0 20px;
   padding: 12px 0;
   border-top: 1px solid var(--border);
-  color: #acbfd0;
+  color: #c5c0b8;
   font-size: var(--type-secondary);
   line-height: 1.7;
 }
@@ -430,7 +430,7 @@
 }
 .annual-method {
   padding: 0 20px 18px;
-  color: #8fa8bd;
+  color: #a39c90;
   font-size: var(--type-secondary);
   line-height: 1.8;
 }

@@ -5,7 +5,7 @@
   border: var(--border-thin) solid var(--border);
   border-radius: var(--radius-control);
   overflow: hidden;
-  background: #0b1218;
+  background: #0f0e0c;
 }
 .geo-map > svg {
   display: block;
@@ -16,13 +16,13 @@
   height: min(70vh, 640px);
 }
 .geo-sea {
-  fill: #0b1218;
+  fill: #0f0e0c;
 }
 .geo-grid {
-  stroke: #8498a826;
+  stroke: #948d8126;
 }
 .geo-grid-label {
-  fill: #8498a8;
+  fill: #948d81;
 }
 .geo-cell {
   fill: #ff754f;
@@ -43,7 +43,7 @@
   fill: #ffd2a8;
 }
 .geo-fire {
-  stroke: #0b1218;
+  stroke: #0f0e0c;
   stroke-width: 0.06;
   fill-opacity: 0.9;
 }

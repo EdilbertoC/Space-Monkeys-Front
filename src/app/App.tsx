@@ -33,8 +33,9 @@ import "../features/history/styles/history-workspace.css";
 const HistoryWorkspace = lazy(() => import("../features/history/components/HistoryWorkspace"));
 
 const TOAST_DURATION_MS = 4000;
-/** Pages that use the shared area and period filters in the header. */
+/** Pages that use the shared area filter in the header, and those that also use the dates. */
 const FILTERED: WorkspacePage[] = ["Overview", "Fire Map", "Historical Analysis"];
+const DATED: WorkspacePage[] = ["Overview", "Fire Map"];
 
 /** Territory is the landing page; a shared link can open any page. */
 function initialPage(): WorkspacePage {
@@ -54,8 +55,6 @@ export default function App() {
   }, [meta.data, period]);
 
   const [menu, setMenu] = useState(false);
-  const [notifications, setNotifications] = useState(false);
-  const [profile, setProfile] = useState(false);
   const [info, setInfo] = useState(false);
   const [toast, setToast] = useState("");
   const [units, setUnits] = useState("Metric (km)");
@@ -71,8 +70,6 @@ export default function App() {
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         setInfo(false);
-        setProfile(false);
-        setNotifications(false);
         setMenu(false);
       }
       if (event.key === "Tab" && info) {
@@ -95,8 +92,6 @@ export default function App() {
   const navigate = (p: WorkspacePage) => {
     setPage(p);
     setMenu(false);
-    setNotifications(false);
-    setProfile(false);
   };
   const notify = (message: string) => {
     if (toastTimeout.current !== null) clearTimeout(toastTimeout.current);
@@ -126,27 +121,19 @@ export default function App() {
       <main className="main-content">
         <WorkspaceTopbar
           page={page}
-          notifications={notifications}
-          setNotifications={setNotifications}
-          profile={profile}
-          setProfile={setProfile}
-          navigate={navigate}
           onOpenInfo={() => setInfo(true)}
           onOpenMenu={() => setMenu(true)}
         />
         <div className={`page-content ${page === "Fire Map" ? "fire-map-workspace" : ""}`}>
           <header className="page-header">
             <div>
-              <div className="eyebrow">
-                <span /> NASA FIRMS · MODIS + VIIRS · BRAZIL
-              </div>
               <h1>{titles[page][0]}</h1>
               <p>{titles[page][1]}</p>
             </div>
             {showFilters && ready && (
               <div className="header-filters">
                 <AreaPicker meta={ready.meta} value={area} onChange={setArea} />
-                <DateCalendar value={periodValue} onApply={applyPeriod} />
+                {DATED.includes(page) && <DateCalendar value={periodValue} onApply={applyPeriod} />}
               </div>
             )}
           </header>
@@ -193,7 +180,6 @@ export default function App() {
           )}
           {ready && page === "Historical Analysis" && (
             <>
-              <PeriodKpis area={area} period={ready.period} />
               <HistoricalAnalysis meta={ready.meta} area={area} />
               <SensorHarmonization meta={ready.meta} />
             </>
@@ -226,12 +212,9 @@ export default function App() {
             />
           )}
           <footer className="page-footer">
+            <span>OrbitBurn · Space Monkeys · NASA Space Apps Challenge 2026</span>
             <span>
-              OrbitBurn <i /> A clearer perspective on a changing planet.
-            </span>
-            <span>
-              NASA Space Apps Challenge 2026 <span className="footer-dot">·</span> Data: NASA FIRMS,
-              NOAA GOES
+              Data: NASA FIRMS (MODIS C6.1, VIIRS 375 m), NOAA GOES-19 ABI, IBGE biomes 2019
             </span>
           </footer>
         </div>

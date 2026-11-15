@@ -23,13 +23,24 @@ export default function ForecastPage() {
   const model = useApi((signal) => forecastApi.getModel({ signal }), []);
   const [lead, setLead] = useState(0);
 
+  if (forecast.status === "error")
+    return (
+      <div className="history-workspace">
+        <section className="panel forecast-empty">
+          <PanelTitle
+            title="No forecast on this server yet"
+            subtitle="The forecast is fed with near-real-time VIIRS detections from NASA FIRMS. Until this server has them, it cannot issue one. The model and its test scores are below."
+          />
+          <p className="hw-note hw-pad">
+            <Icon name="info" size={13} /> {describeError(forecast.error)}
+          </p>
+        </section>
+        {model.status === "success" && <ModelCard model={model.data} />}
+      </div>
+    );
+
   return (
     <div className="history-workspace">
-      {forecast.status === "error" && (
-        <p className="hw-note warn">
-          <Icon name="info" size={13} /> No forecast to show: {describeError(forecast.error)}
-        </p>
-      )}
       <div className="hw-kpis">
         <Card title="Issued for" state={forecast}>
           {forecast.data && (
@@ -254,7 +265,7 @@ export function ForecastSummary({ onOpen }: { onOpen: () => void }) {
       ) : (
         <small>
           {forecast.status === "error"
-            ? `Unavailable: ${describeError(forecast.error)}`
+            ? "No forecast on this server yet: it needs near-real-time FIRMS data."
             : "Loading…"}
         </small>
       )}

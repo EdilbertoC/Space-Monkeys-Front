@@ -95,7 +95,13 @@ function YearLines({ years }: { years: YearRow[] }) {
         ))}
         {years.map((r, i) =>
           i % 2 === 0 ? (
-            <text key={r.year} className="hw-axis" x={x(i)} y={H - 6} textAnchor="middle">
+            <text
+              key={r.year}
+              className="hw-axis"
+              x={x(i)}
+              y={H - 6}
+              textAnchor={i === n - 1 ? "end" : "middle"}
+            >
               {r.year}
             </text>
           ) : null,

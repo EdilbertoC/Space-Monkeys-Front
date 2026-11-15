@@ -219,6 +219,19 @@ export default function TerritoryPage({
         </div>
       </section>
 
+      {t && own.length > 0 && (
+        <Finding
+          place={placeName(area)}
+          firstYear={own[0]!.year}
+          slope={t.slope_per_year}
+          significant={t.significant}
+          decision={effective}
+          own={ownCmp}
+          reference={refCmp}
+          refPlace={refArea && placeName(refArea)}
+        />
+      )}
+
       <div className="hw-kpis hw-kpis-2">
         <Card title={`Trend since ${own[0]?.year ?? "…"}`} state={territory}>
           {t && (
@@ -227,7 +240,6 @@ export default function TerritoryPage({
                 {signed(t.slope_per_year)}
                 <em> fire cell-days / year</em>
               </strong>
-              <small>{trendSentence(t.slope_per_year, t.ci95, t.significant)}</small>
               <small>
                 Theil–Sen on {own.length} complete years, 95% CI{" "}
                 {formatValue(noNegativeZero(t.ci95[0]))} to {formatValue(noNegativeZero(t.ci95[1]))}
@@ -349,19 +361,70 @@ function noNegativeZero(value: number | undefined): number | null {
   return value === undefined ? null : value + 0;
 }
 
+/** Short name of an area for sentences: "Pantanal", "Brazil", "This box". */
+function placeName(area: AreaChoice): string {
+  if (area.kind === "biome") return area.biome;
+  if (area.kind === "country") return "Brazil";
+  return "This box";
+}
+
+/** The answer, in words, before the numbers that back it. */
+function Finding({
+  place,
+  firstYear,
+  slope,
+  significant,
+  decision,
+  own,
+  reference,
+  refPlace,
+}: {
+  place: string;
+  firstYear: number;
+  slope: number;
+  significant: boolean;
+  decision: number | null;
+  own: Comparison | null;
+  reference: Comparison | null;
+  refPlace: string | null;
+}) {
+  const verdict = !significant
+    ? "no detectable trend"
+    : slope < 0
+      ? "fire is falling"
+      : "fire is rising";
+  const pct = own?.enough ? own.changePct : null;
+  const differs = own?.p !== null && own?.p !== undefined && own.p < 0.05;
+  return (
+    <div className="tr-finding" aria-live="polite">
+      <h2>
+        {place}: {verdict} since {firstYear}.
+      </h2>
+      {decision === null ? (
+        <p className="muted">Pick the year a decision took effect to see what changed after it.</p>
+      ) : pct === null || pct === undefined ? (
+        <p className="muted">There is not enough fire before {decision} to compare.</p>
+      ) : (
+        <p>
+          After {decision}, the median year is {Math.abs(pct).toFixed(0)}%{" "}
+          {pct < 0 ? "lower" : "higher"}
+          {reference?.changePct !== null && reference?.changePct !== undefined && refPlace
+            ? `, against ${signed(reference.changePct)}% for ${refPlace}`
+            : ""}
+          {differs
+            ? ". That is more than year-to-year variation explains."
+            : ". That is within normal year-to-year variation."}
+        </p>
+      )}
+    </div>
+  );
+}
+
 function slug(text: string): string {
   return text
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "_")
     .replace(/^_|_$/g, "");
-}
-
-function trendSentence(slope: number, ci: number[], significant: boolean): string {
-  if (!significant)
-    return "No detectable trend: the 95% interval includes zero, so the data cannot say whether fire is rising or falling.";
-  const lo = ci[0] ?? NaN;
-  const hi = ci[1] ?? NaN;
-  return `Fire activity ${slope < 0 ? "fell" : "rose"} over the years (95% interval ${formatValue(lo)} to ${formatValue(hi)} per year, excluding zero).`;
 }
 
 function BeforeAfterSummary({
@@ -384,35 +447,26 @@ function BeforeAfterSummary({
       </small>
     );
   const p = own.p;
-  const differs = p !== null && p < 0.05;
   return (
     <>
       <strong className="hw-big">
         {signed(own.changePct)}%<em> in the median year</em>
       </strong>
       <small>
-        {formatValue(own.before.median)} before ({own.before.n} years) →{" "}
-        {formatValue(own.after.median)} after ({own.after.n} years).
-      </small>
-      <small>
-        {p === null
-          ? ""
-          : differs
-            ? `The two periods differ more than year-to-year variation explains (p = ${p.toFixed(3)}).`
-            : `Within what year-to-year variation produces (p = ${p.toFixed(3)}).`}
+        Median {formatValue(own.before.median)} over {own.before.n} years before,{" "}
+        {formatValue(own.after.median)} over {own.after.n} years after
+        {p === null ? "." : ` · Mann–Whitney p = ${p.toFixed(3)}`}
       </small>
       {ref && ref.changePct !== null && refName && (
         <small>
-          {refName} changed {signed(ref.changePct)}% over the same split, so the territory ended{" "}
-          {Math.abs(own.changePct - ref.changePct).toFixed(0)} percentage points{" "}
-          {own.changePct - ref.changePct < 0 ? "below" : "above"} it.
+          {refName}: {signed(ref.changePct)}% over the same split (
+          {Math.abs(own.changePct - ref.changePct).toFixed(0)} points{" "}
+          {own.changePct - ref.changePct < 0 ? "below" : "above"} it).
         </small>
       )}
       {drift !== null && own.after.lastYear !== null && own.after.lastYear >= drift && (
         <small className="tr-warn">
-          The after period includes {drift} onward, when MODIS orbits drifted. The methodology finds
-          observed MODIS 8–15% above the VIIRS-based estimate over Brazil in those years, so they
-          may read high.
+          Includes {drift} onward, when MODIS orbits drift: those years may read 8–15% high.
         </small>
       )}
     </>
@@ -498,14 +552,6 @@ function TerritoryChart({
               width={W - PAD.right - x(drift - 0.5)}
               height={H - PAD.top - PAD.bottom}
             />
-            <text
-              className="tr-drift-label"
-              x={W - PAD.right - 4}
-              y={H - PAD.bottom - 5}
-              textAnchor="end"
-            >
-              MODIS orbit drift: may read high
-            </text>
           </>
         )}
         {decision !== null && (
@@ -605,6 +651,12 @@ function TerritoryChart({
         {medians.length > 0 && (
           <>
             <i className="hw-swatch line tr-median" /> <span>Median year, before and after</span>
+          </>
+        )}
+        {drift !== null && drift <= y1 && (
+          <>
+            <i className="hw-swatch tr-drift-swatch" />{" "}
+            <span>From {drift}: MODIS orbit drift, may read high</span>
           </>
         )}
         {own.some((p) => p.low !== undefined) && (

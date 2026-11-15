@@ -6,6 +6,7 @@ import "./features/history/date-selection/date-calendar.css";
 import App from "./app/App";
 import "./shared/styles/index.css";
 import "./shared/styles/refinements.css";
+import "./shared/styles/identity.css";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

@@ -96,7 +96,7 @@
 .date-calendar-days .endpoint,
 .date-calendar-days .endpoint:hover {
   background: var(--calendar-orange);
-  color: #0e151c;
+  color: #141311;
   font-weight: 600;
 }
 .date-calendar-grid {
@@ -134,7 +134,7 @@
 }
 .date-calendar-footer .date-calendar-apply {
   background: var(--calendar-orange);
-  color: #0e151c;
+  color: #141311;
 }
 .date-calendar-footer .date-calendar-apply:hover {
   background: #ff956f;
