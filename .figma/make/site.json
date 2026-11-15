@@ -1,0 +1,10 @@
+{
+  "description": "Explore satellite-based wildfire hotspots, historical trends, and unusual activity in one dashboard, helping researchers and emergency teams assess fire patterns.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}

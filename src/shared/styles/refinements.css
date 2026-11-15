@@ -1,0 +1,492 @@
+:root {
+  --type-page: clamp(24px, 2.4vw, 32px);
+  --type-section: 16px;
+  --type-card: 13px;
+  --type-kpi: clamp(25px, 2.2vw, 34px);
+  --type-body: 13px;
+  --type-secondary: 12px;
+  --type-label: 12px;
+  --type-option: 13px;
+  --type-table: 12px;
+  --type-tooltip: 12px;
+  --type-nav: 12px;
+  --text-micro: 10px;
+  --text-caption: 11px;
+  --text-small: 12px;
+  --text-body: 13px;
+  --text-title: 15px;
+  --control-height: 42px;
+  --control-radius: 6px;
+}
+.daily-month-selector {
+  padding: 12px 20px;
+  max-width: 320px;
+}
+.map-topbar > .orbit-select {
+  min-width: 140px;
+  max-width: 65%;
+}
+.history-start-control {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: var(--text-secondary);
+  font-size: var(--type-label);
+}
+.history-start-control .orbit-select {
+  min-width: 110px;
+}
+#root .page-header h1 {
+  font-size: var(--type-page);
+  font-weight: 550;
+  line-height: 1.25;
+  letter-spacing: -0.7px;
+}
+#root .page-header p,
+#root .panel-heading p {
+  font-size: var(--type-secondary);
+  line-height: 1.7;
+}
+#root .panel-heading h2,
+#root .analysis-toolbar h2 {
+  font-size: var(--type-section);
+  font-weight: 550;
+  line-height: 1.5;
+}
+#root .kpi-top > span,
+#root .setting-row h3 {
+  font-size: var(--type-card);
+  line-height: 1.5;
+}
+#root .kpi-value-row > strong,
+#root .hfi-kpi-value {
+  font-size: var(--type-kpi);
+  font-weight: 550;
+}
+#root .nav-item {
+  font-size: var(--type-nav);
+  min-height: 42px;
+}
+#root .burn-filter > span:first-child,
+#root .filter-control,
+#root label > select {
+  font-size: var(--type-label);
+}
+#root th {
+  font-size: var(--type-label);
+  font-weight: 550;
+  line-height: 1.6;
+}
+#root td {
+  font-size: var(--type-table);
+  line-height: 1.7;
+}
+#root .sensor-source-card p,
+#root .sensor-source-card dd,
+#root .source-documentation p,
+#root .insight-panel p {
+  font-size: var(--type-body);
+  line-height: 1.8;
+}
+#root .sensor-source-card dt,
+#root .history-note,
+#root .source-note,
+#root .burn-method-note,
+#root .explorer-footnote,
+#root .priority-table-note {
+  font-size: var(--type-secondary);
+  line-height: 1.7;
+}
+#root .sensor-source-card h3,
+#root .anomaly-card h2 {
+  font-size: var(--type-section);
+}
+#root .kpi-comparison,
+#root .hfi-kpi-grid p,
+#root .hfi-kpi-note,
+#root .source-status,
+#root .priority-anomalies small {
+  font-size: var(--type-secondary);
+  line-height: 1.7;
+}
+.hotspot-tooltip,
+.chart-tooltip,
+.hfi-cell-tooltip {
+  font-size: var(--type-tooltip);
+}
+.orbit-select {
+  position: relative;
+  min-width: 0;
+}
+.orbit-filter-trigger,
+#root .date-calendar-trigger.orbit-filter-trigger {
+  width: 100%;
+  min-width: 0;
+  height: var(--control-height);
+  min-height: var(--control-height);
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 0 12px;
+  border: 1px solid #3a4b5d;
+  border-radius: var(--control-radius);
+  background: #162331;
+  color: #dce4ed;
+  font-size: var(--type-label);
+  font-weight: 450;
+  line-height: 1.5;
+  cursor: pointer;
+  text-align: left;
+}
+.orbit-filter-trigger > * {
+  pointer-events: none;
+}
+.orbit-filter-trigger > span {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.orbit-filter-trigger > svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  color: #9db1c5;
+}
+.orbit-filter-trigger:hover {
+  border-color: #677b90;
+  background: #1c2d3e;
+}
+.orbit-filter-trigger[aria-expanded="true"] {
+  border-color: #c89164;
+}
+.orbit-select-menu,
+.date-calendar-popup {
+  z-index: 1000;
+  border: 1px solid #43576a;
+  border-radius: 6px;
+  background: #142231;
+  box-shadow: 0 12px 36px #0007;
+  color: #e4edf5;
+  animation: filter-reveal 0.14s ease-out;
+}
+.orbit-select-menu {
+  padding: 5px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  font-size: var(--type-option);
+  outline: none;
+}
+.orbit-select-menu [role="option"] {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px;
+  min-height: 40px;
+  cursor: pointer;
+  border-radius: 4px;
+}
+.orbit-select-menu [role="option"].is-active {
+  background: #2a3e51;
+}
+.orbit-select-menu [aria-selected="true"] {
+  color: #ffd3a1;
+}
+.orbit-select-menu [aria-disabled="true"] {
+  opacity: 0.5;
+  cursor: default;
+}
+.date-calendar-popup {
+  max-height: calc(100dvh - 24px);
+  overflow-y: auto;
+  font-size: var(--type-option);
+}
+@keyframes filter-reveal {
+  from {
+    opacity: 0;
+    translate: 0 -4px;
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
+}
+#root .header-filters {
+  align-items: center;
+  gap: 10px;
+}
+#root .header-filters > .orbit-select {
+  min-width: 154px;
+  flex: 1;
+}
+#root .header-filters .date-calendar-anchor {
+  min-width: 170px;
+}
+#root .burn-filter-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+#root .burn-filter-grid > .burn-filter {
+  flex: 1 1 160px;
+  gap: 8px;
+}
+#root .burn-filter .orbit-select {
+  flex: 1;
+}
+#root .burn-filter-grid > .orbit-select {
+  flex: 1 1 180px;
+}
+#root .burn-filter-grid > .date-calendar-anchor {
+  flex: 1 1 190px;
+}
+#root .hfi-display-toggle {
+  flex: 1 1 400px;
+  align-self: auto;
+}
+#root .burn-reset {
+  height: var(--control-height);
+}
+#root .filter-control:has(> select) {
+  position: relative;
+  min-height: var(--control-height);
+  border-radius: var(--control-radius);
+}
+#root .filter-control > select {
+  min-height: var(--control-height);
+  font-size: var(--type-label);
+}
+.workspace-data-status {
+  margin: 0 0 22px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+  color: #aabccc;
+}
+.workspace-data-status summary {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: var(--type-secondary);
+  cursor: pointer;
+}
+.workspace-data-status summary > small {
+  margin-left: auto;
+  font-size: var(--type-secondary);
+  color: #8da3b8;
+}
+.workspace-data-status p {
+  max-width: 1000px;
+  margin-top: 12px;
+  font-size: var(--type-secondary);
+  line-height: 1.8;
+}
+#root .page-content .demo-pill,
+#root .hfi-source-status,
+#root .hfi-mode-label,
+#root .hfi-preview-tag {
+  display: none;
+}
+#root .page-content {
+  padding-bottom: 30px;
+}
+#root .panel {
+  border-radius: 7px;
+}
+#root .hfi-main-grid {
+  gap: 22px;
+}
+.annual-year-nav {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.annual-year-nav .orbit-select {
+  width: 110px;
+}
+.annual-prev svg {
+  rotate: 90deg;
+}
+.annual-next svg {
+  rotate: -90deg;
+}
+.annual-area {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 16px 20px 12px;
+  color: #b4c6d6;
+  font-size: var(--type-secondary);
+}
+.annual-area strong {
+  color: #e0e8ef;
+  font-weight: 500;
+}
+.annual-area > span {
+  margin-left: auto;
+  color: #92aabd;
+}
+.annual-months {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  padding: 8px 20px 18px;
+}
+.annual-month {
+  min-width: 0;
+  padding: 14px 12px;
+  border: 1px solid #34485a;
+  border-radius: 6px;
+  background: #14212d;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  text-align: left;
+}
+.annual-month:hover,
+.annual-month:focus-visible {
+  background: #1c2d3c;
+  border-color: #af9472;
+}
+.annual-month.selected {
+  border-color: #d4a365;
+  background: #302b224a;
+}
+.annual-month-name {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: var(--type-label);
+  color: #c1d0dd;
+}
+.annual-month-name i {
+  width: 5px;
+  height: 5px;
+  background: #d9a956;
+  border-radius: 50%;
+}
+.annual-month > strong {
+  font-size: 21px;
+  font-weight: 500;
+  color: #e8d7bd;
+}
+.annual-month-track {
+  display: block;
+  height: 4px;
+  border-radius: 2px;
+  background: #2b3948;
+  overflow: hidden;
+}
+.annual-month-track i {
+  display: block;
+  height: 100%;
+  background: #dfab54;
+  border-radius: 2px;
+}
+.annual-month.level-elevated .annual-month-track i {
+  background: #f58c4d;
+}
+.annual-month.level-extreme .annual-month-track i,
+.annual-month.level-extreme .annual-month-name i {
+  background: #e97570;
+}
+.annual-month.level-missing .annual-month-track i {
+  background: repeating-linear-gradient(135deg, #334355 0 3px, #718092 3px 4px);
+}
+.annual-month.level-missing > strong,
+.annual-month.level-missing .annual-month-name {
+  color: #95a8ba;
+}
+.annual-month.level-missing .annual-month-name i {
+  background: transparent;
+  border: 1px solid #879aac;
+}
+.annual-month small {
+  font-size: var(--type-secondary);
+  line-height: 1.6;
+  color: #a4b7ca;
+}
+.annual-readout {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-height: 62px;
+  margin: 0 20px;
+  padding: 12px 0;
+  border-top: 1px solid var(--border);
+  color: #acbfd0;
+  font-size: var(--type-secondary);
+  line-height: 1.7;
+}
+.annual-readout strong {
+  color: #e0d0b8;
+  font-weight: 500;
+}
+.annual-method {
+  padding: 0 20px 18px;
+  color: #8fa8bd;
+  font-size: var(--type-secondary);
+  line-height: 1.8;
+}
+.map-panel .hotspot-core {
+  transform-box: fill-box;
+  transform-origin: center;
+  transition:
+    transform 0.16s ease,
+    filter 0.16s ease,
+    opacity 0.16s ease;
+}
+.map-panel .hotspot:hover .hotspot-core,
+.map-panel .hotspot:focus .hotspot-core,
+.map-panel .hotspot:focus-visible .hotspot-core {
+  transform: scale(1.4);
+  filter: brightness(1.18) drop-shadow(0 0 2px var(--hotspot-color));
+}
+.map-panel .hotspot:hover .hotspot-glow,
+.map-panel .hotspot:focus-visible .hotspot-glow {
+  opacity: 0.28;
+}
+@media (max-width: 700px) {
+  #root .header-filters > .orbit-select,
+  #root .header-filters .date-calendar-anchor {
+    flex: 1 1 150px;
+    min-width: 0;
+  }
+  .annual-months {
+    gap: 8px;
+    padding: 8px 14px 14px;
+  }
+  .annual-month {
+    padding: 12px 9px;
+  }
+  .annual-month > strong {
+    font-size: 18px;
+  }
+  .annual-area {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+  .workspace-data-status summary > small {
+    margin-left: 22px;
+    flex-basis: 100%;
+  }
+  #root .hfi-calendar .panel-heading {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .orbit-select-menu,
+  .date-calendar-popup {
+    animation: none;
+  }
+  .map-panel .hotspot-core {
+    transition: none;
+  }
+}

@@ -1,0 +1,996 @@
+# SI-assisted: written with Claude (Anthropic), reviewed by the Space Monkeys team. See README.
+openapi: 3.1.0
+info:
+  title: Space Monkeys API
+  version: 0.2.0-draft
+  summary: Burning activity calendar from harmonized MODIS and VIIRS fire hotspots, plus a real-time fire pulse.
+  description: |
+    Contract between the Space Monkeys backend and frontend. It lists everything the
+    backend offers. Routes tagged `history` are the burning activity calendar
+    (planned, step 10 of the plan). Routes tagged `live` and `system` exist today
+    and are frozen.
+
+    ## Units and conventions
+
+    - **Fire cell-day**: one 0.1° grid cell (about 11 km) on one UTC day with at least
+      one detection. History numbers are counts of fire cell-days inside the area,
+      never counts of hotspots and never burned area. Sensors are combined with OR on
+      the cell-day, never summed.
+    - **Series**:
+      - `modis`: what MODIS (Terra or Aqua) saw. The long, consistent record
+        (2000-11-01 to the end of MODIS).
+      - `viirs`: what any VIIRS satellite saw (2012-01-20 on). Not comparable across
+        years: NOAA-20 (2018) and NOAA-21 (2023) add detections.
+      - `harmonized`: MODIS-equivalent fire cell-days. MODIS where it exists, and
+        VIIRS translated to MODIS units by the calibration model once MODIS ends.
+        This is the series the calendar should show. Every harmonized number
+        comes with an uncertainty interval.
+    - **Dates** are ISO 8601 UTC days. Periods are inclusive of `start` and `end`.
+    - **Weeks** are days 1–7, 8–14, ... of the year; the last week (index 51) runs
+      to 31 December (8 or 9 days).
+    - **Provisional data**: months not yet in the FIRMS standard archive come from
+      near-real-time (NRT) files and are flagged `provisional: true`.
+    - **Missing vs zero**: `null` means "no data from that sensor for that period"
+      (before it started or after it ended); `0` means "observed, no fire".
+
+    ## Harmonization status
+
+    Until the harmonized record is built (step 8), `harmonized` fields are `null`
+    and `GET /history/meta` reports `harmonization.status: pending`. Every
+    example in this file is a real value computed from the NASA FIRMS archive for
+    the Pantanal biome (IBGE 2019), not invented data.
+
+    ## Choosing an area
+
+    Every history route takes exactly one of:
+    - `bbox=west,south,east,north` (degrees, WGS84);
+    - `biome=` one of the six Brazilian biomes (IBGE 2019);
+    - `area_id=` from `POST /history/areas`, for a polygon drawn in the app.
+
+    A cell belongs to the area when its centre is inside. Large areas are limited
+    (`413`) to keep responses fast; the limit is in `GET /history/meta`.
+  license:
+    name: Apache-2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0
+servers:
+  - url: http://localhost:8000
+    description: Local development
+tags:
+  - name: history
+    description: Burning activity calendar, climatology, anomalies, season and trend (planned).
+  - name: live
+    description: Real-time fused fires and detections (exists, frozen).
+  - name: system
+    description: Health and worker status (exists).
+
+paths:
+  /history/meta:
+    get:
+      tags: [history]
+      operationId: getHistoryMeta
+      summary: What the historical record covers
+      description: Data coverage per sensor, available biomes, harmonization status, known gaps and limits. Call once on app start.
+      responses:
+        "200":
+          description: Coverage and status.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Meta" }
+              examples:
+                current:
+                  summary: State of the record on 2026-11-14 (harmonization pending)
+                  value:
+                    unit: fire_cell_days
+                    grid_degrees: 0.1
+                    time_basis: UTC
+                    coverage:
+                      modis: { start: "2000-11-01", standard_until: "2026-08-31", end: "2026-11-14" }
+                      viirs: { start: "2012-01-20", standard_until: "2026-07-31", end: "2026-11-14" }
+                      satellites:
+                        - { name: Terra, sensor: MODIS, start: "2000-11-01", end: null }
+                        - { name: Aqua, sensor: MODIS, start: "2002-07-04", end: null }
+                        - { name: SNPP, sensor: VIIRS, start: "2012-01-20", end: "2026-11-02" }
+                        - { name: N20, sensor: VIIRS, start: "2018-04-01", end: null }
+                        - { name: N21, sensor: VIIRS, start: "2023-03-01", end: null }
+                    biomes:
+                      - { name: Amazon, cells: 34460 }
+                      - { name: Caatinga, cells: 7104 }
+                      - { name: Cerrado, cells: 16660 }
+                      - { name: Atlantic Forest, cells: 9699 }
+                      - { name: Pampa, cells: 1825 }
+                      - { name: Pantanal, cells: 1301 }
+                    harmonization:
+                      status: pending
+                      model: null
+                      version: null
+                    known_gaps:
+                      - { sensor: MODIS, period: "2001-06/2001-07", note: "Missing data, end of June to beginning of July 2001 (FIRMS download Readme)." }
+                      - { sensor: MODIS, period: "2002", note: "Some data missing throughout the year (FIRMS download Readme)." }
+                      - { sensor: MODIS, period: "2007-08", note: "Some data missing from mid-August 2007 (FIRMS download Readme)." }
+                      - { sensor: MODIS, period: "2009-04-21/2009-04-22", note: "Missing for part of 21 April and all of 22 April 2009 (FIRMS download Readme)." }
+                    limits:
+                      max_area_cells: 50000
+                      max_map_cells: 20000
+                      max_day_buckets: 1000
+
+  /history/areas:
+    post:
+      tags: [history]
+      operationId: createArea
+      summary: Register a drawn polygon and get an area id
+      description: |
+        Turns a GeoJSON polygon into the set of 0.1° cells whose centre is inside
+        it. The id is a stable hash of the cells, so the same polygon always gets the
+        same id and responses can be cached. Use it as `area_id` on any history route.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AreaRequest" }
+      responses:
+        "200":
+          description: The area, as cells.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Area" }
+        "413": { $ref: "#/components/responses/AreaTooLarge" }
+        "422": { $ref: "#/components/responses/Invalid" }
+
+  /history/calendar:
+    get:
+      tags: [history]
+      operationId: getCalendar
+      summary: Fire cell-days over time for an area (the burning activity calendar)
+      parameters:
+        - $ref: "#/components/parameters/bbox"
+        - $ref: "#/components/parameters/biome"
+        - $ref: "#/components/parameters/area_id"
+        - $ref: "#/components/parameters/start"
+        - $ref: "#/components/parameters/end"
+        - name: granularity
+          in: query
+          schema: { type: string, enum: [day, week, month], default: week }
+      responses:
+        "200":
+          description: One bucket per day, week or month.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Calendar" }
+              examples:
+                pantanal_2020_peak:
+                  summary: Pantanal biome, Aug–Oct 2020, by month (harmonization pending)
+                  value:
+                    area: { kind: biome, biome: Pantanal, cells: 1301 }
+                    unit: fire_cell_days
+                    granularity: month
+                    buckets:
+                      - { start: "2020-08-01", end: "2020-08-31", harmonized: null, modis: 2053, viirs: 3637, provisional: false }
+                      - { start: "2020-09-01", end: "2020-09-30", harmonized: null, modis: 2529, viirs: 4662, provisional: false }
+                      - { start: "2020-10-01", end: "2020-10-31", harmonized: null, modis: 1435, viirs: 3075, provisional: false }
+        "400": { $ref: "#/components/responses/BadArea" }
+        "404": { $ref: "#/components/responses/UnknownArea" }
+        "413": { $ref: "#/components/responses/AreaTooLarge" }
+        "422": { $ref: "#/components/responses/Invalid" }
+
+  /history/climatology:
+    get:
+      tags: [history]
+      operationId: getClimatology
+      summary: The normal year for an area (median and 10th–90th percentile band)
+      description: For each week (or month) of the year, the distribution of fire cell-days over the base years. This is the "normal" the calendar is compared to.
+      parameters:
+        - $ref: "#/components/parameters/bbox"
+        - $ref: "#/components/parameters/biome"
+        - $ref: "#/components/parameters/area_id"
+        - $ref: "#/components/parameters/series"
+        - $ref: "#/components/parameters/base_start_year"
+        - $ref: "#/components/parameters/base_end_year"
+        - name: granularity
+          in: query
+          schema: { type: string, enum: [week, month], default: week }
+      responses:
+        "200":
+          description: 52 weekly or 12 monthly buckets.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Climatology" }
+              examples:
+                pantanal_modis_september:
+                  summary: Pantanal biome, MODIS, base 2003–2025 (three September weeks shown)
+                  value:
+                    area: { kind: biome, biome: Pantanal, cells: 1301 }
+                    unit: fire_cell_days
+                    series: modis
+                    granularity: week
+                    base_years: [2003, 2025]
+                    buckets:
+                      - { index: 34, label: "Aug 26–Sep 1", median: 143.0, p10: 41.2, p90: 260.4, mean: 173.3 }
+                      - { index: 35, label: "Sep 2–8", median: 225.0, p10: 36.0, p90: 630.4, mean: 259.9 }
+                      - { index: 36, label: "Sep 9–15", median: 178.0, p10: 42.4, p90: 483.2, mean: 236.0 }
+        "400": { $ref: "#/components/responses/BadArea" }
+        "409": { $ref: "#/components/responses/HarmonizationPending" }
+        "404": { $ref: "#/components/responses/UnknownArea" }
+        "413": { $ref: "#/components/responses/AreaTooLarge" }
+        "422": { $ref: "#/components/responses/Invalid" }
+
+  /history/anomaly:
+    get:
+      tags: [history]
+      operationId: getAnomaly
+      summary: Is this period above normal?
+      description: |
+        Compares the fire cell-days of a period with the same calendar period in
+        every base year (the period's own year is left out of the base).
+        `class`: `below` under the 10th percentile, `normal` between the 10th and
+        90th, `above` over the 90th, `record` over every base year.
+      parameters:
+        - $ref: "#/components/parameters/bbox"
+        - $ref: "#/components/parameters/biome"
+        - $ref: "#/components/parameters/area_id"
+        - $ref: "#/components/parameters/start"
+        - $ref: "#/components/parameters/end"
+        - $ref: "#/components/parameters/series"
+        - $ref: "#/components/parameters/base_start_year"
+        - $ref: "#/components/parameters/base_end_year"
+      responses:
+        "200":
+          description: The period against its normal.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Anomaly" }
+              examples:
+                pantanal_2020_week_35:
+                  summary: Pantanal biome, 2–8 Sep 2020, MODIS, against 2003–2025 without 2020
+                  value:
+                    area: { kind: biome, biome: Pantanal, cells: 1301 }
+                    unit: fire_cell_days
+                    series: modis
+                    period: { start: "2020-09-02", end: "2020-09-08" }
+                    value: 661
+                    normal: { median: 217.5, p10: 33.5, p90: 504.5 }
+                    percentile: 90.9
+                    ratio_to_median: 3.04
+                    class: above
+                    base_years: [2003, 2025]
+                    excluded_years: [2020]
+        "400": { $ref: "#/components/responses/BadArea" }
+        "409": { $ref: "#/components/responses/HarmonizationPending" }
+        "404": { $ref: "#/components/responses/UnknownArea" }
+        "413": { $ref: "#/components/responses/AreaTooLarge" }
+        "422": { $ref: "#/components/responses/Invalid" }
+
+  /history/season:
+    get:
+      tags: [history]
+      operationId: getSeason
+      summary: When the fire season started, peaked and ended in a year
+      description: |
+        Start: first week by which 10% of the year's fire cell-days had happened.
+        End: first week by which 90% had happened. Peak: the week with the most.
+        `normal` gives the median of the same three weeks over the base years
+        (the year itself left out), as month-day.
+      parameters:
+        - $ref: "#/components/parameters/bbox"
+        - $ref: "#/components/parameters/biome"
+        - $ref: "#/components/parameters/area_id"
+        - name: year
+          in: query
+          required: true
+          schema: { type: integer, minimum: 2001 }
+        - $ref: "#/components/parameters/series"
+        - $ref: "#/components/parameters/base_start_year"
+        - $ref: "#/components/parameters/base_end_year"
+      responses:
+        "200":
+          description: Season dates for the year and the normal season.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Season" }
+              examples:
+                pantanal_2020:
+                  summary: Pantanal biome, 2020, MODIS (an early, long season)
+                  value:
+                    area: { kind: biome, biome: Pantanal, cells: 1301 }
+                    series: modis
+                    year: 2020
+                    total: 9717
+                    start_week: "2020-04-01"
+                    peak_week: "2020-09-09"
+                    end_week: "2020-10-21"
+                    normal: { start: "05-14", peak: "09-24", end: "11-12" }
+                    base_years: [2003, 2025]
+                    excluded_years: [2020]
+                    complete_year: true
+        "400": { $ref: "#/components/responses/BadArea" }
+        "409": { $ref: "#/components/responses/HarmonizationPending" }
+        "404": { $ref: "#/components/responses/UnknownArea" }
+        "413": { $ref: "#/components/responses/AreaTooLarge" }
+        "422": { $ref: "#/components/responses/Invalid" }
+
+  /history/trend:
+    get:
+      tags: [history]
+      operationId: getTrend
+      summary: Yearly totals and the long-term trend
+      description: |
+        Fire cell-days per year and a Theil–Sen slope (fire cell-days per year) with
+        its 95% confidence interval. `significant` is false when the interval
+        contains zero. Only complete years enter the slope. Use `harmonized` for
+        any trend that crosses 2012: `viirs` jumps when satellites are added.
+      parameters:
+        - $ref: "#/components/parameters/bbox"
+        - $ref: "#/components/parameters/biome"
+        - $ref: "#/components/parameters/area_id"
+        - $ref: "#/components/parameters/series"
+        - name: start_year
+          in: query
+          schema: { type: integer, minimum: 2001 }
+        - name: end_year
+          in: query
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Yearly totals and slope.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Trend" }
+              examples:
+                pantanal_modis:
+                  summary: Pantanal biome, MODIS, 2003–2025 (no significant trend)
+                  value:
+                    area: { kind: biome, biome: Pantanal, cells: 1301 }
+                    unit: fire_cell_days
+                    series: modis
+                    annual:
+                      - { year: 2003, value: 3070, complete: true }
+                      - { year: 2004, value: 5438, complete: true }
+                      - { year: 2005, value: 7161, complete: true }
+                      - { year: 2006, value: 2681, complete: true }
+                      - { year: 2007, value: 5244, complete: true }
+                      - { year: 2008, value: 3336, complete: true }
+                      - { year: 2009, value: 3778, complete: true }
+                      - { year: 2010, value: 4748, complete: true }
+                      - { year: 2011, value: 2741, complete: true }
+                      - { year: 2012, value: 3823, complete: true }
+                      - { year: 2013, value: 2720, complete: true }
+                      - { year: 2014, value: 1352, complete: true }
+                      - { year: 2015, value: 3191, complete: true }
+                      - { year: 2016, value: 4019, complete: true }
+                      - { year: 2017, value: 3612, complete: true }
+                      - { year: 2018, value: 1479, complete: true }
+                      - { year: 2019, value: 5728, complete: true }
+                      - { year: 2020, value: 9717, complete: true }
+                      - { year: 2021, value: 3682, complete: true }
+                      - { year: 2022, value: 1261, complete: true }
+                      - { year: 2023, value: 2650, complete: true }
+                      - { year: 2024, value: 5034, complete: true }
+                      - { year: 2025, value: 476, complete: true }
+                    slope_per_year: -95.2
+                    ci95: [-193.6, 49.0]
+                    significant: false
+                    method: theil-sen
+        "400": { $ref: "#/components/responses/BadArea" }
+        "409": { $ref: "#/components/responses/HarmonizationPending" }
+        "404": { $ref: "#/components/responses/UnknownArea" }
+        "413": { $ref: "#/components/responses/AreaTooLarge" }
+        "422": { $ref: "#/components/responses/Invalid" }
+
+  /history/map:
+    get:
+      tags: [history]
+      operationId: getMap
+      summary: Fire cell-days per cell in a period, to paint the map
+      description: One entry per 0.1° cell with at least one fire cell-day in the period. Cells with no fire are left out.
+      parameters:
+        - $ref: "#/components/parameters/bbox"
+        - $ref: "#/components/parameters/biome"
+        - $ref: "#/components/parameters/area_id"
+        - $ref: "#/components/parameters/start"
+        - $ref: "#/components/parameters/end"
+      responses:
+        "200":
+          description: Cells with fire.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Map" }
+              examples:
+                pantanal_sep_2020:
+                  summary: Pantanal biome, September 2020 (two of the busiest cells shown)
+                  value:
+                    area: { kind: biome, biome: Pantanal, cells: 1301 }
+                    unit: fire_cell_days
+                    grid_degrees: 0.1
+                    period: { start: "2020-09-01", end: "2020-09-30" }
+                    cells:
+                      - { cell_id: 2607629, lat: -17.55, lon: -57.05, harmonized: null, modis: 25, viirs: 29 }
+                      - { cell_id: 2618425, lat: -17.25, lon: -57.45, harmonized: null, modis: 15, viirs: 29 }
+        "400": { $ref: "#/components/responses/BadArea" }
+        "404": { $ref: "#/components/responses/UnknownArea" }
+        "413": { $ref: "#/components/responses/AreaTooLarge" }
+        "422": { $ref: "#/components/responses/Invalid" }
+
+  /fires/live:
+    get:
+      tags: [live]
+      operationId: getLiveFires
+      summary: Fused fire events from the last retention window (GeoJSON)
+      parameters:
+        - $ref: "#/components/parameters/bbox"
+        - name: min_confidence
+          in: query
+          schema: { type: number, minimum: 0, maximum: 1, default: 0 }
+      responses:
+        "200":
+          description: Fused fires as a FeatureCollection of points.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FireCollection" }
+        "422": { $ref: "#/components/responses/Invalid" }
+
+  /detections/recent:
+    get:
+      tags: [live]
+      operationId: getRecentDetections
+      summary: Raw detections from every sensor (GeoJSON)
+      parameters:
+        - $ref: "#/components/parameters/bbox"
+        - name: sensor
+          in: query
+          schema: { type: string, enum: [VIIRS, MODIS, ABI] }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 50000, default: 5000 }
+      responses:
+        "200":
+          description: Newest detections first.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DetectionCollection" }
+        "422": { $ref: "#/components/responses/Invalid" }
+
+  /fires/stream:
+    get:
+      tags: [live]
+      operationId: streamFires
+      summary: Server-Sent Events, one `snapshot` on connect then a `pulse` after every poll
+      description: |
+        `text/event-stream`. Events:
+        - `snapshot`: data is a `FireCollection` (with `updated_at`).
+        - `pulse`: data is a `Pulse`.
+        - comment lines `: ping` keep idle connections open.
+      responses:
+        "200":
+          description: Event stream.
+          content:
+            text/event-stream:
+              schema: { type: string }
+
+  /health:
+    get:
+      tags: [system]
+      operationId: getHealth
+      summary: Liveness
+      responses:
+        "200":
+          description: Up.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status: { type: string, const: ok }
+
+  /status:
+    get:
+      tags: [system]
+      operationId: getStatus
+      summary: Real-time worker and data source status
+      responses:
+        "200":
+          description: Worker, sources and live counts.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Status" }
+
+components:
+  parameters:
+    bbox:
+      name: bbox
+      in: query
+      description: Area as west,south,east,north in degrees (WGS84). History routes need exactly one of bbox, biome, area_id.
+      schema: { type: string, pattern: "^-?\\d+(\\.\\d+)?(,-?\\d+(\\.\\d+)?){3}$" }
+      example: "-58,-19,-56,-17"
+    biome:
+      name: biome
+      in: query
+      description: A Brazilian biome (IBGE 2019).
+      schema: { $ref: "#/components/schemas/Biome" }
+    area_id:
+      name: area_id
+      in: query
+      description: Id returned by POST /history/areas.
+      schema: { type: string }
+    start:
+      name: start
+      in: query
+      required: true
+      schema: { type: string, format: date }
+      example: "2020-08-01"
+    end:
+      name: end
+      in: query
+      required: true
+      schema: { type: string, format: date }
+      example: "2020-10-31"
+    series:
+      name: series
+      in: query
+      description: Which series to compute on. Defaults to harmonized; until harmonization is available, the server answers `harmonized` requests with 409 and the client should fall back to `modis`.
+      schema: { $ref: "#/components/schemas/Series" }
+    base_start_year:
+      name: base_start_year
+      in: query
+      description: First year of the base period for "normal" (default 2003, the first full year with both Terra and Aqua).
+      schema: { type: integer, default: 2003 }
+    base_end_year:
+      name: base_end_year
+      in: query
+      description: Last year of the base period (default the last complete year).
+      schema: { type: integer }
+
+  responses:
+    Invalid:
+      description: A parameter is malformed (FastAPI validation error).
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    BadArea:
+      description: Not exactly one of bbox, biome, area_id was given.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+          example: { detail: "give exactly one of bbox, biome, area_id" }
+    HarmonizationPending:
+      description: series=harmonized was asked before the harmonized record exists (GET /history/meta, harmonization.status). Retry with series=modis.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+          example: { detail: "harmonized series not available yet; use series=modis" }
+    UnknownArea:
+      description: area_id was not created by POST /history/areas (or has expired).
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    AreaTooLarge:
+      description: The area or the response would exceed the limits in GET /history/meta.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+          example: { detail: "area has 61234 cells; the limit is 50000" }
+
+  schemas:
+    Error:
+      type: object
+      required: [detail]
+      properties:
+        detail:
+          description: Human-readable message (string), or FastAPI's list of validation errors.
+          oneOf:
+            - type: string
+            - type: array
+              items: { type: object }
+
+    Biome:
+      type: string
+      enum: [Amazon, Caatinga, Cerrado, Atlantic Forest, Pampa, Pantanal]
+
+    Series:
+      type: string
+      enum: [harmonized, modis, viirs]
+      default: harmonized
+
+    Interval:
+      description: A harmonized estimate with its 90% interval.
+      type: object
+      required: [value, low, high]
+      properties:
+        value: { type: number }
+        low: { type: number }
+        high: { type: number }
+
+    Period:
+      type: object
+      required: [start, end]
+      properties:
+        start: { type: string, format: date }
+        end: { type: string, format: date }
+
+    AreaSummary:
+      type: object
+      required: [kind, cells]
+      properties:
+        kind: { type: string, enum: [bbox, biome, area_id] }
+        bbox:
+          type: array
+          items: { type: number }
+          minItems: 4
+          maxItems: 4
+        biome: { $ref: "#/components/schemas/Biome" }
+        area_id: { type: string }
+        cells: { type: integer, description: Number of 0.1° cells in the area. }
+
+    AreaRequest:
+      type: object
+      required: [geometry]
+      properties:
+        geometry:
+          description: GeoJSON Polygon or MultiPolygon, WGS84 lon/lat.
+          type: object
+          required: [type, coordinates]
+          properties:
+            type: { type: string, enum: [Polygon, MultiPolygon] }
+            coordinates: { type: array }
+
+    Area:
+      type: object
+      required: [area_id, cells, bbox]
+      properties:
+        area_id: { type: string }
+        cells: { type: integer }
+        bbox:
+          type: array
+          items: { type: number }
+          minItems: 4
+          maxItems: 4
+        biomes:
+          type: object
+          description: Share of the area's cells in each biome; cells outside Brazil under "outside".
+          additionalProperties: { type: number }
+
+    Meta:
+      type: object
+      required: [unit, grid_degrees, time_basis, coverage, biomes, harmonization, known_gaps, limits]
+      properties:
+        unit: { type: string, const: fire_cell_days }
+        grid_degrees: { type: number }
+        time_basis: { type: string, const: UTC }
+        coverage:
+          type: object
+          properties:
+            modis: { $ref: "#/components/schemas/SensorCoverage" }
+            viirs: { $ref: "#/components/schemas/SensorCoverage" }
+            satellites:
+              type: array
+              items:
+                type: object
+                required: [name, sensor, start]
+                properties:
+                  name: { type: string, enum: [Terra, Aqua, SNPP, N20, N21] }
+                  sensor: { type: string, enum: [MODIS, VIIRS] }
+                  start: { type: string, format: date }
+                  end: { type: [string, "null"], format: date }
+        biomes:
+          type: array
+          items:
+            type: object
+            required: [name, cells]
+            properties:
+              name: { $ref: "#/components/schemas/Biome" }
+              cells: { type: integer }
+        harmonization:
+          type: object
+          required: [status]
+          properties:
+            status: { type: string, enum: [pending, available] }
+            model: { type: [string, "null"] }
+            version: { type: [string, "null"] }
+            test_metrics:
+              type: object
+              description: Held-out scores of the model in use (bias, monthly WAPE...), when available.
+              additionalProperties: true
+        known_gaps:
+          type: array
+          items:
+            type: object
+            required: [sensor, period, note]
+            properties:
+              sensor: { type: string }
+              period: { type: string, description: ISO 8601 date, month or interval. }
+              note: { type: string }
+        limits:
+          type: object
+          properties:
+            max_area_cells: { type: integer }
+            max_map_cells: { type: integer }
+            max_day_buckets: { type: integer }
+
+    SensorCoverage:
+      type: object
+      required: [start, standard_until, end]
+      properties:
+        start: { type: string, format: date }
+        standard_until: { type: string, format: date, description: Last day in the FIRMS standard archive; later days are provisional (NRT). }
+        end: { type: string, format: date }
+
+    CalendarBucket:
+      type: object
+      required: [start, end, harmonized, modis, viirs, provisional]
+      properties:
+        start: { type: string, format: date }
+        end: { type: string, format: date }
+        harmonized:
+          oneOf:
+            - { $ref: "#/components/schemas/Interval" }
+            - { type: "null" }
+        modis: { type: [integer, "null"] }
+        viirs: { type: [integer, "null"] }
+        provisional: { type: boolean }
+
+    Calendar:
+      type: object
+      required: [area, unit, granularity, buckets]
+      properties:
+        area: { $ref: "#/components/schemas/AreaSummary" }
+        unit: { type: string, const: fire_cell_days }
+        granularity: { type: string, enum: [day, week, month] }
+        buckets:
+          type: array
+          items: { $ref: "#/components/schemas/CalendarBucket" }
+
+    Climatology:
+      type: object
+      required: [area, unit, series, granularity, base_years, buckets]
+      properties:
+        area: { $ref: "#/components/schemas/AreaSummary" }
+        unit: { type: string, const: fire_cell_days }
+        series: { $ref: "#/components/schemas/Series" }
+        granularity: { type: string, enum: [week, month] }
+        base_years:
+          type: array
+          items: { type: integer }
+          minItems: 2
+          maxItems: 2
+        buckets:
+          type: array
+          items:
+            type: object
+            required: [index, label, median, p10, p90, mean]
+            properties:
+              index: { type: integer, description: Week 0–51 or month 1–12. }
+              label: { type: string }
+              median: { type: number }
+              p10: { type: number }
+              p90: { type: number }
+              mean: { type: number }
+
+    Anomaly:
+      type: object
+      required: [area, unit, series, period, value, normal, percentile, class, base_years]
+      properties:
+        area: { $ref: "#/components/schemas/AreaSummary" }
+        unit: { type: string, const: fire_cell_days }
+        series: { $ref: "#/components/schemas/Series" }
+        period: { $ref: "#/components/schemas/Period" }
+        value: { type: number }
+        value_interval:
+          description: For the harmonized series, the 90% interval of `value`.
+          oneOf:
+            - { $ref: "#/components/schemas/Interval" }
+            - { type: "null" }
+        normal:
+          type: object
+          required: [median, p10, p90]
+          properties:
+            median: { type: number }
+            p10: { type: number }
+            p90: { type: number }
+        percentile: { type: number, description: Share of base years with a lower value, in %. }
+        ratio_to_median: { type: [number, "null"] }
+        class: { type: string, enum: [below, normal, above, record] }
+        base_years:
+          type: array
+          items: { type: integer }
+          minItems: 2
+          maxItems: 2
+        excluded_years:
+          type: array
+          items: { type: integer }
+
+    Season:
+      type: object
+      required: [area, series, year, total, start_week, peak_week, end_week, normal, complete_year]
+      properties:
+        area: { $ref: "#/components/schemas/AreaSummary" }
+        series: { $ref: "#/components/schemas/Series" }
+        year: { type: integer }
+        total: { type: number }
+        start_week: { type: string, format: date, description: First day of the start week. }
+        peak_week: { type: string, format: date }
+        end_week: { type: string, format: date }
+        normal:
+          type: object
+          required: [start, peak, end]
+          properties:
+            start: { type: string, pattern: "^\\d{2}-\\d{2}$" }
+            peak: { type: string, pattern: "^\\d{2}-\\d{2}$" }
+            end: { type: string, pattern: "^\\d{2}-\\d{2}$" }
+        base_years:
+          type: array
+          items: { type: integer }
+        excluded_years:
+          type: array
+          items: { type: integer }
+        complete_year: { type: boolean, description: False for the current year; dates may still move. }
+
+    Trend:
+      type: object
+      required: [area, unit, series, annual, slope_per_year, ci95, significant, method]
+      properties:
+        area: { $ref: "#/components/schemas/AreaSummary" }
+        unit: { type: string, const: fire_cell_days }
+        series: { $ref: "#/components/schemas/Series" }
+        annual:
+          type: array
+          items:
+            type: object
+            required: [year, value, complete]
+            properties:
+              year: { type: integer }
+              value: { type: number }
+              interval:
+                oneOf:
+                  - { $ref: "#/components/schemas/Interval" }
+                  - { type: "null" }
+              complete: { type: boolean }
+        slope_per_year: { type: number }
+        ci95:
+          type: array
+          items: { type: number }
+          minItems: 2
+          maxItems: 2
+        significant: { type: boolean }
+        method: { type: string, const: theil-sen }
+
+    Map:
+      type: object
+      required: [area, unit, grid_degrees, period, cells]
+      properties:
+        area: { $ref: "#/components/schemas/AreaSummary" }
+        unit: { type: string, const: fire_cell_days }
+        grid_degrees: { type: number }
+        period: { $ref: "#/components/schemas/Period" }
+        cells:
+          type: array
+          items:
+            type: object
+            required: [cell_id, lat, lon, harmonized, modis, viirs]
+            properties:
+              cell_id: { type: integer, description: "row * 3600 + col, counted from (-90, -180) in 0.1° steps." }
+              lat: { type: number, description: Cell centre. }
+              lon: { type: number, description: Cell centre. }
+              harmonized: { type: [number, "null"] }
+              modis: { type: [integer, "null"] }
+              viirs: { type: [integer, "null"] }
+
+    PointGeometry:
+      type: object
+      required: [type, coordinates]
+      properties:
+        type: { type: string, const: Point }
+        coordinates:
+          type: array
+          items: { type: number }
+          minItems: 2
+          maxItems: 2
+          description: "[lon, lat], 5 decimals."
+
+    FireProperties:
+      type: object
+      required: [fire_id, uncertainty_km, confidence, sensors, n_detections, first_seen, last_seen]
+      properties:
+        fire_id: { type: string, description: Id of the event's earliest detection; stable across polls. }
+        uncertainty_km: { type: number, description: About 95% radius of the position. }
+        confidence:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: 1 − ∏(1 − best confidence per sensor). A heuristic, not a calibrated probability.
+        sensors:
+          type: array
+          items: { type: string, enum: [VIIRS, MODIS, ABI] }
+        n_detections: { type: integer }
+        first_seen: { type: string, format: date-time }
+        last_seen: { type: string, format: date-time }
+        frp_max_mw: { type: [number, "null"] }
+
+    FireFeature:
+      type: object
+      required: [type, id, geometry, properties]
+      properties:
+        type: { type: string, const: Feature }
+        id: { type: string }
+        geometry: { $ref: "#/components/schemas/PointGeometry" }
+        properties: { $ref: "#/components/schemas/FireProperties" }
+
+    FireCollection:
+      type: object
+      required: [type, features]
+      properties:
+        type: { type: string, const: FeatureCollection }
+        features:
+          type: array
+          items: { $ref: "#/components/schemas/FireFeature" }
+        updated_at: { type: [string, "null"], format: date-time }
+
+    DetectionProperties:
+      type: object
+      required: [detection_id, source, sensor, time, confidence]
+      properties:
+        detection_id: { type: string }
+        source: { type: string, description: "e.g. FIRMS:VIIRS_SNPP_NRT, GOES:G19" }
+        sensor: { type: string, enum: [VIIRS, MODIS, ABI] }
+        satellite: { type: string }
+        time: { type: string, format: date-time }
+        scan_km: { type: [number, "null"] }
+        track_km: { type: [number, "null"] }
+        frp_mw: { type: [number, "null"] }
+        confidence: { type: number, minimum: 0, maximum: 1 }
+        daynight: { type: string, enum: [D, N, ""] }
+
+    DetectionCollection:
+      type: object
+      required: [type, features]
+      properties:
+        type: { type: string, const: FeatureCollection }
+        features:
+          type: array
+          items:
+            type: object
+            required: [type, id, geometry, properties]
+            properties:
+              type: { type: string, const: Feature }
+              id: { type: string }
+              geometry: { $ref: "#/components/schemas/PointGeometry" }
+              properties: { $ref: "#/components/schemas/DetectionProperties" }
+
+    Pulse:
+      type: object
+      required: [at, new_detections, total_fires, new, updated, removed]
+      properties:
+        at: { type: string, format: date-time }
+        new_detections: { type: integer }
+        total_fires: { type: integer }
+        new: { $ref: "#/components/schemas/FireCollection" }
+        updated: { $ref: "#/components/schemas/FireCollection" }
+        removed:
+          type: array
+          items: { type: string }
+          description: fire_id values no longer live.
+
+    Status:
+      type: object
+      required: [worker, sources, live, stream_subscribers]
+      properties:
+        worker:
+          type: object
+          properties:
+            enabled: { type: boolean }
+            running: { type: boolean }
+            runs: { type: integer }
+            last_run: { type: [string, "null"], format: date-time }
+        sources:
+          type: object
+          additionalProperties:
+            type: object
+            properties:
+              last_success: { type: [string, "null"], format: date-time }
+              last_error: { type: [string, "null"] }
+              last_count: { type: [integer, "null"] }
+        live:
+          type: object
+          properties:
+            detections: { type: integer }
+            fires: { type: integer }
+            updated_at: { type: [string, "null"], format: date-time }
+        stream_subscribers: { type: integer }
