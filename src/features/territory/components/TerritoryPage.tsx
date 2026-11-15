@@ -124,7 +124,8 @@ export default function TerritoryPage({
   const [months, setMonths] = useState<MonthRange>(() => parseMonths(readParam("months")));
   const [referenceKey, setReferenceKey] = useState(() => {
     const key = readParam("ref");
-    return key !== null && (key === NONE || referenceArea(key)) ? key : BRAZIL;
+    // No reference by default, so the chart opens in fire cell-days with the trend line.
+    return key !== null && (key === NONE || referenceArea(key)) ? key : NONE;
   });
   const [copied, setCopied] = useState(false);
 
@@ -177,14 +178,18 @@ export default function TerritoryPage({
   // A chosen period that falls outside this area's years gives way to the default split.
   const fits = (r: YearRange | null): r is YearRange =>
     r !== null && first !== null && last !== null && r.from >= first && r.to <= last;
-  const defaults = defaultPeriods(years);
+  // The default split stops before the MODIS drift years, which may read 8–15% high; the
+  // user can still pick them.
+  const drift = driftYear(meta.harmonization.switch_date);
+  const preDrift = drift === null ? years : years.filter((y) => y < drift);
+  const defaults = defaultPeriods(preDrift) ?? defaultPeriods(years);
   const periodA = fits(pickedA) ? pickedA : (defaults?.a ?? null);
   const periodB = fits(pickedB) ? pickedB : (defaults?.b ?? null);
   const periods = periodA && periodB ? { a: periodA, b: periodB } : null;
 
   useEffect(() => {
     writeParams({
-      ref: referenceKey === BRAZIL ? null : referenceKey,
+      ref: referenceKey === NONE ? null : referenceKey,
       a: pickedA ? `${pickedA.from}-${pickedA.to}` : null,
       b: pickedB ? `${pickedB.from}-${pickedB.to}` : null,
       months: windowed ? `${months.from}-${months.to}` : null,
@@ -211,7 +216,6 @@ export default function TerritoryPage({
 
   const t = territory.data?.data;
   const localTrend = theilSen(own);
-  const drift = driftYear(meta.harmonization.switch_date);
   const trendLine = indexed ? null : localTrend;
 
   const exportCsv = () => {
@@ -349,8 +353,6 @@ export default function TerritoryPage({
         />
       )}
 
-      <TerritoryMap meta={meta} area={area} periods={periods} onAreaChange={onAreaChange} />
-
       <div className="hw-kpis hw-kpis-2">
         <Card
           title={
@@ -389,7 +391,8 @@ export default function TerritoryPage({
                   </small>
                 </>
               )
-            : t && (
+            : t &&
+              (t.significant ? (
                 <>
                   <strong className="hw-big">
                     {signed(t.slope_per_year)}
@@ -397,11 +400,20 @@ export default function TerritoryPage({
                   </strong>
                   <small>
                     Theil–Sen on {own.length} complete years, 95% CI{" "}
-                    {formatValue(noNegativeZero(t.ci95[0]))} to{" "}
-                    {formatValue(noNegativeZero(t.ci95[1]))}.
+                    {signed(noNegativeZero(t.ci95[0]) ?? 0)} to{" "}
+                    {signed(noNegativeZero(t.ci95[1]) ?? 0)}.
                   </small>
                 </>
-              )}
+              ) : (
+                <>
+                  <strong className="hw-big">No detectable trend</strong>
+                  <small>
+                    Theil–Sen slope {signed(t.slope_per_year)} fire cell-days / year on{" "}
+                    {own.length} complete years, but the 95% CI ({signed(noNegativeZero(t.ci95[0]) ?? 0)}{" "}
+                    to {signed(noNegativeZero(t.ci95[1]) ?? 0)}) includes zero.
+                  </small>
+                </>
+              ))}
         </Card>
       </div>
 
@@ -456,6 +468,8 @@ export default function TerritoryPage({
           </button>
         </div>
       </section>
+
+      <TerritoryMap meta={meta} area={area} periods={periods} onAreaChange={onAreaChange} />
 
       <section className="panel">
         <PanelTitle title="How to read this" />
