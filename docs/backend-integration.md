@@ -74,12 +74,11 @@ Replace the state with the received `snapshot`. For pulses, use `applyPulse(prev
 
 ## Which page reads what
 
-The area (Brazil, a biome or a lon/lat box) and the period are shared by Overview, Fire Map, Historical Analysis and Burning Calendar. `/history/meta` is read once by `App` and passed down; the default period is the last 30 days of the record.
+The area (Brazil, a biome or a lon/lat box) is shared by Fires now, Historical Analysis, Risk Forecast and Burning Calendar. `/history/meta` is read once by `App` and passed down.
 
 | Page | Routes |
 | --- | --- |
-| Overview | `/history/calendar` (KPIs, chart), `/history/anomaly` (period vs normal, with interval), `/history/map?cell_degrees=auto` + `/fires/live` (map), `/forecast/summary` (Brazil card), `/fires/live` (table) |
-| Fire Map | `/history/map?cell_degrees=auto`, `/fires/live` |
+| Fires now (Overview; old `?view=Fire Map` links open it) | `/detections/recent?sensor=VIIRS&bbox=` (raw VIIRS detections, last 48 h), `/status` (last update). For a biome or Brazil, `/history/map?cell_degrees=auto` over the VIIRS era gives the area's cells, used only to keep the detections inside the area. |
 | Burning Calendar | `/history/calendar` (day and week), `/history/climatology`, `/history/anomaly`, `/history/season`, `/history/trend` |
 | Historical Analysis | `/history/calendar` (KPIs, VIIRS yearly totals), `/history/trend` (harmonized and MODIS), `/history/meta` (method) |
 | Anomaly Alerts | `/history/anomalies?areas=biomes+country` (one call) |

@@ -1,0 +1,92 @@
+/* SI-assisted: written with Claude (Anthropic), reviewed by the Space Monkeys team. See README. */
+/* Credits panel on About the data: sources, references, software, SI use. */
+.credits-panel .panel-heading {
+  padding: 22px 25px;
+  border-bottom: 1px solid #48433b;
+}
+.credits-body {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  padding: 24px 25px 30px;
+}
+.credits-body h3 {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+.credits-body h4 {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+.credits-body a {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: #ffffff40;
+  text-underline-offset: 2px;
+}
+.credits-body a:hover {
+  text-decoration-color: currentColor;
+}
+.credits-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.credits-list li {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.credits-list strong {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.credits-list span {
+  color: var(--text-secondary);
+}
+.credits-list em {
+  font-style: normal;
+  font-size: 11.5px;
+  color: var(--text-subtle);
+}
+.credits-note {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  margin-top: 12px;
+}
+.credits-body h3 + .credits-note {
+  margin-top: 0;
+  margin-bottom: 10px;
+}
+.credits-software {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 20px 28px;
+}
+.credits-software table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+.credits-software td {
+  white-space: normal;
+  padding: 5px 0;
+  border-bottom: 1px solid #ffffff12;
+  vertical-align: top;
+  color: var(--text-secondary);
+}
+.credits-software td + td {
+  text-align: right;
+  padding-left: 12px;
+  color: var(--text-subtle);
+  white-space: nowrap;
+}

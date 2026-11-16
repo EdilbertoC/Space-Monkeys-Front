@@ -2,6 +2,7 @@
 import { ApiStatusBadge } from "../../features/system/components/SystemStatus";
 import { Icon } from "../../shared/ui/ui";
 import { groups, pages, type WorkspacePage } from "../navigation";
+import SolisMark from "./SolisMark";
 
 export default function WorkspaceSidebar({
   menu,
@@ -21,20 +22,23 @@ export default function WorkspaceSidebar({
           e.preventDefault();
           navigate("Territory");
         }}
-        aria-label="OrbitBurn, back to the start"
+        aria-label="Solis, back to the start"
       >
         <span className="brand-mark">
-          <Icon name="flame" size={22} />
+          <SolisMark size={32} />
         </span>
         <span>
-          OrbitBurn
+          <span className="brand-word">Solis</span>
           <small>Brazil fire record since 2000</small>
         </span>
       </a>
       <nav aria-label="Pages">
         {groups.map((g) => (
           <div key={g.id} className="nav-group">
-            <div className="nav-label">{g.label}</div>
+            <div className="nav-label">
+              <span>{g.label}</span>
+              {g.tag && <span className={`nav-tag nav-tag-${g.tone}`}>{g.tag}</span>}
+            </div>
             {pages
               .filter((p) => p.group === g.id)
               .map((p) => (

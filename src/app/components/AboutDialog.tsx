@@ -44,9 +44,9 @@ export default function AboutDialog({ onClose }: { onClose: () => void }) {
         <div className="modal-callout">
           <Icon name="info" />
           <p>
-            Data: NASA FIRMS (MODIS Collection 6.1, VIIRS 375 m), NOAA GOES-19 ABI for fires burning
-            now, IBGE 2019 biomes. A research prototype for NASA Space Apps 2026; not for emergency
-            decisions.
+            Data: NASA FIRMS (MODIS Collection 6.1, VIIRS 375 m), NOAA GOES-19 ABI as the real-time
+            anchor of the forecast, IBGE 2019 biomes. Full credits on About the data. A research
+            prototype for NASA Space Apps 2026; not for emergency decisions.
           </p>
         </div>
         <button className="button primary" onClick={() => onClose()}>

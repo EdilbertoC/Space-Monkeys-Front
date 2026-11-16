@@ -448,6 +448,51 @@ export function LiveFiresLayer({ fires }: { fires: FireFeature[] }) {
   );
 }
 
+type Detection = Schemas["DetectionCollection"]["features"][number];
+
+/** Age class of a detection: 1 = 6 hours old or less, 2 = up to 24 hours, 3 = older. */
+export function ageClass(time: string, now: number): 1 | 2 | 3 {
+  const hours = (now - Date.parse(time)) / 3_600_000;
+  return hours <= 6 ? 1 : hours <= 24 ? 2 : 3;
+}
+
+/**
+ * Raw VIIRS detections as points (one 375 m pixel each), coloured by age and drawn oldest
+ * first so the newest stay on top. Radius in screen pixels.
+ */
+export function DetectionsLayer({
+  detections,
+  now,
+  describe,
+}: {
+  detections: Detection[];
+  now: number;
+  describe: (d: Detection) => string;
+}) {
+  const px = useContext(MapPixel);
+  const ordered = [...detections].sort((a, b) =>
+    a.properties.time.localeCompare(b.properties.time),
+  );
+  return (
+    <g className="geo-detections">
+      {ordered.map((d) => {
+        const [lon, lat] = d.geometry.coordinates as [number, number];
+        return (
+          <circle
+            key={d.id}
+            className={`geo-det age${ageClass(d.properties.time, now)}`}
+            cx={lonToX(lon)}
+            cy={latToY(lat)}
+            r={px * 3}
+          >
+            <title>{describe(d)}</title>
+          </circle>
+        );
+      })}
+    </g>
+  );
+}
+
 export function ForecastLayer({
   cells,
   lead,

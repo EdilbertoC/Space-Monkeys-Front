@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { Icon, PanelTitle } from "../../shared/ui/ui";
-import DateCalendar from "../history/date-selection/DateCalendar";
-export type WorkspacePreferences = { period: string; units: string; alerts: boolean };
+export type WorkspacePreferences = { units: string; alerts: boolean };
 export default function WorkspaceSettings({
   preferences,
   onApply,
@@ -9,7 +8,6 @@ export default function WorkspaceSettings({
   preferences: WorkspacePreferences;
   onApply: (p: WorkspacePreferences) => void;
 }) {
-  const [observationWindow, setObservationWindow] = useState(preferences.period);
   const [alerts, setAlerts] = useState(preferences.alerts);
   const [units, setUnits] = useState(preferences.units);
   const [saved, setSaved] = useState(false);
@@ -19,20 +17,6 @@ export default function WorkspaceSettings({
         title="Workspace preferences"
         subtitle="Configure the workspace for this session."
       />
-      <div className="setting-row">
-        <div>
-          <h3>Observation window</h3>
-          <p>Change the date range used by the dashboard, map, and activity table.</p>
-        </div>
-        <DateCalendar
-          value={observationWindow}
-          label="Preferred observation calendar"
-          onApply={(value) => {
-            setObservationWindow(value);
-            setSaved(false);
-          }}
-        />
-      </div>
       <div className="setting-row">
         <div>
           <h3>Distance units</h3>
@@ -74,7 +58,7 @@ export default function WorkspaceSettings({
         <button
           className="button primary"
           onClick={() => {
-            onApply({ period: observationWindow, units, alerts });
+            onApply({ units, alerts });
             setSaved(true);
           }}
         >

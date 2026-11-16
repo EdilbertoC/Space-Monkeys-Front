@@ -1,15 +1,19 @@
-OrbitBurn data attribution
+Solis data attribution
 
 World map: Natural Earth public-domain country boundaries, distributed by
 datasets/geo-countries (https://github.com/datasets/geo-countries).
 Geometry is simplified and rendered using an equirectangular projection.
 
 Fire data shown in the app comes from the Space Monkeys API: NASA FIRMS MODIS
-C6.1 and VIIRS 375 m active fire products (historical record and forecast input)
-and NOAA GOES ABI fire detections (live layer).
+C6.1 and VIIRS 375 m active fire products (historical record, Fires now and
+forecast input) and NOAA GOES-19 ABI fire detections (real-time anchor of the
+7-day forecast). Biomes: IBGE Biomas do Brasil 2019, 1:250,000.
+
+The full list of datasets, references, libraries, licenses and the use of
+Super Intelligence (SI) is on the About the data page.
 
 MODIS and VIIRS sensor descriptions reference public NASA FIRMS documentation:
 https://firms.modaps.eosdis.nasa.gov/
 
-OrbitBurn is an independent NASA Space Apps Challenge 2026 concept.
+Solis is an independent NASA Space Apps Challenge 2026 concept.
 No NASA affiliation or endorsement is implied.
