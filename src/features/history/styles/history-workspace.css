@@ -1,7 +1,7 @@
 /* SI-assisted: written with Claude (Anthropic), reviewed by the Space Monkeys team. See README. */
 /* API-backed burning calendar (HistoryWorkspace). Uses the workspace theme tokens. */
 .history-workspace {
-  --hw-l0: #1f2b36;
+  --hw-l0: #2a2722;
   --hw-l1: #4a2a22;
   --hw-l2: #7a3424;
   --hw-l3: #b14327;
@@ -271,12 +271,12 @@ button.hw-day:focus-visible {
   background: repeating-linear-gradient(
     135deg,
     transparent 0 3px,
-    #8498a833 3px 4px
+    #948d8133 3px 4px
   );
-  border-color: #8498a822;
+  border-color: #948d8122;
 }
 .hw-day.prov {
-  border: 1px dashed #f0f3f5aa;
+  border: 1px dashed #efeae0aa;
 }
 .hw-day.sel {
   border: 2px solid var(--text-primary);
@@ -361,7 +361,7 @@ button.hw-day:focus-visible {
   font-weight: 600;
 }
 .hw-band {
-  fill: #a7b6c31f;
+  fill: #b8b1a41f;
 }
 .hw-median {
   fill: none;
@@ -405,7 +405,7 @@ button.hw-day:focus-visible {
   background: var(--hw-l5);
 }
 .hw-swatch.band {
-  background: #a7b6c33a;
+  background: #b8b1a43a;
 }
 .hw-swatch.median {
   height: 0;
@@ -543,7 +543,7 @@ button.hw-day:focus-visible {
 }
 .hw-table td {
   padding: 6px 8px;
-  border-bottom: var(--border-thin) solid #2b3a4666;
+  border-bottom: var(--border-thin) solid #36332d66;
   white-space: nowrap;
 }
 .hw-table td:first-child {
@@ -594,7 +594,7 @@ button.hw-day:focus-visible {
   display: grid;
   place-items: center;
   font-size: 9px;
-  color: #0e151c;
+  color: #141311;
   background: var(--hw-l0);
 }
 .hw-mcell.within,
@@ -612,11 +612,11 @@ button.hw-day:focus-visible {
   background: #4f7ea3;
 }
 .hw-mcell.partial {
-  background-image: repeating-linear-gradient(135deg, transparent 0 3px, #0e151c66 3px 5px);
+  background-image: repeating-linear-gradient(135deg, transparent 0 3px, #14131166 3px 5px);
 }
 .hw-mcell.nodata {
   background: transparent;
-  border: 1px dashed #8498a844;
+  border: 1px dashed #948d8144;
 }
 .geo-swatch {
   display: inline-block;
@@ -629,13 +629,19 @@ button.hw-day:focus-visible {
   border-radius: 50%;
 }
 .geo-swatch.l1 {
-  background: #7a3424;
+  background: #8a4a2e;
+}
+.geo-swatch.l2 {
+  background: #c2602f;
 }
 .geo-swatch.l3 {
-  background: #e2582f;
+  background: #f08a3e;
+}
+.geo-swatch.l4 {
+  background: #ffc17a;
 }
 .geo-swatch.l5 {
-  background: #ffd2a8;
+  background: #fff0d6;
 }
 .geo-swatch.abi {
   background: #b48cff;
@@ -660,6 +666,10 @@ button.hw-day:focus-visible {
 }
 .geo-swatch.fc4 {
   background: #ff3d2e;
+}
+.geo-swatch.fc-anchored {
+  background: #ff7a3dcc;
+  box-shadow: inset 0 0 0 1.5px #fff;
 }
 @media (max-width: 900px) {
   .hw-overview-row,

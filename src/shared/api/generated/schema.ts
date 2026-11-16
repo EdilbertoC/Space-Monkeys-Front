@@ -268,7 +268,7 @@ export interface paths {
         };
         /**
          * Probability of fire per 0.25° cell for the next 7 days (lead 1 = today)
-         * @description Base forecast: a U-Net turns the last 30 days of VIIRS S-NPP NRT fire maps
+         * @description Base forecast: a U-Net turns the last 30 days of VIIRS NOAA-20 NRT fire maps
          *     into, for every 0.25° cell of Brazil, the probability of at least one VIIRS
          *     fire detection on each of the next 7 days. It is issued for the last complete
          *     UTC day (`issued_for`), so `valid_dates[0]` is today. Recomputed every
@@ -281,6 +281,35 @@ export interface paths {
          *     day are listed. Model card: `GET /forecast/model`.
          */
         get: operations["getForecast"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/forecast/outlook": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The 7-day forecast summed over an area, next to the normal for those dates
+         * @description Links the forecast to the calendar's question "is this above normal?". For
+         *     each of the 7 forecast days: `expected_fire_cells` is the sum of the forecast
+         *     probabilities over the area's 0.25° forecast cells (the expected number of
+         *     cells with at least one VIIRS detection), and `normal_fire_cells` is the same
+         *     sum over the climatology the model was trained with (VIIRS S-NPP, 2012–2022,
+         *     smoothed over ±7 days). `ratio_to_normal` above 1 means more fire expected
+         *     than usual for those dates. These are forecast units (0.25° cells, VIIRS):
+         *     they are not the MODIS-equivalent fire cell-days of `/history` and must not
+         *     be added to or compared with them. Give exactly one of `bbox` or `biome`;
+         *     `biome` needs the historical data (503 otherwise).
+         */
+        get: operations["getForecastOutlook"];
         put?: never;
         post?: never;
         delete?: never;
@@ -794,6 +823,40 @@ export interface components {
                 /** @description One per valid date. */
                 cells_at_least_50: number[];
             }[];
+        };
+        ForecastOutlook: {
+            area: {
+                /** @enum {string} */
+                kind: "bbox" | "biome";
+                bbox?: number[];
+                biome?: components["schemas"]["Biome"];
+            };
+            model?: string;
+            /** Format: date */
+            issued_for: string;
+            /** Format: date-time */
+            generated_at?: string;
+            /** Format: date-time */
+            anchored_at?: string | null;
+            /** @constant */
+            unit: "expected_fire_cells_per_day";
+            resolution_deg?: number;
+            /** @description Forecast cells of the area. */
+            forecast_cells: number;
+            /** @description Cells raised by fires burning now. */
+            anchored_cells?: number;
+            days: {
+                /** Format: date */
+                date: string;
+                expected_fire_cells: number;
+                normal_fire_cells: number;
+                ratio_to_normal: number | null;
+            }[];
+            week: {
+                expected_fire_cell_days: number;
+                normal_fire_cell_days: number;
+                ratio_to_normal: number | null;
+            };
         };
         /** @description The model card (models/fire_forecast_brazil/meta.json) plus status. */
         ForecastModel: {
@@ -1421,6 +1484,45 @@ export interface operations {
             };
             422: components["responses"]["Invalid"];
             /** @description The forecast is disabled, or none has been issued yet (needs `FIRMS_MAP_KEY`). */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getForecastOutlook: {
+        parameters: {
+            query?: {
+                /**
+                 * @description Area as west,south,east,north in degrees (WGS84). History routes need exactly one of bbox, biome, area_id, country.
+                 * @example -58,-19,-56,-17
+                 */
+                bbox?: components["parameters"]["bbox"];
+                /** @description A Brazilian biome (IBGE 2019). */
+                biome?: components["parameters"]["biome"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Forecast and normal per day and for the week. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForecastOutlook"];
+                };
+            };
+            400: components["responses"]["BadArea"];
+            422: components["responses"]["Invalid"];
+            /** @description No forecast yet, forecast disabled, or biome asked without historical data. */
             503: {
                 headers: {
                     [name: string]: unknown;

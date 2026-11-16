@@ -1,0 +1,33 @@
+1
+00:00:00,000 --> 00:00:03,200
+Hi, we're Space Monkeys.
+Satellites have watched Brazil burn since 2000,
+
+2
+00:00:03,200 --> 00:00:07,000
+but MODIS and VIIRS count fire differently:
+switch sensors and the record doubles in 2012.
+
+3
+00:00:07,000 --> 00:00:12,000
+We built OrbitBurn: one harmonized fire record,
+in MODIS units, from 2000 to today.
+
+4
+00:00:12,000 --> 00:00:16,500
+Pick an area and the year
+a decision took effect.
+
+5
+00:00:16,500 --> 00:00:22,000
+OrbitBurn tells you if fire is rising or falling,
+and how it changed, against all of Brazil.
+
+6
+00:00:22,000 --> 00:00:27,500
+Built on open NASA data, honest about uncertainty,
+for the people who manage the land.
+
+7
+00:00:27,500 --> 00:00:30,000
+OrbitBurn · Space Monkeys · NASA Space Apps 2026

@@ -1,0 +1,1008 @@
+/* SI-assisted: written with Claude (Anthropic), reviewed by the Space Monkeys team. See README. */
+/* Territory page: the answer, the change map, the yearly chart with draggable periods. */
+.territory {
+  --period-a: #b9a7ff;
+  --period-b: #39c6a5;
+  /* Change map: blue = less fire, orange = more. Steps differ in lightness, not hue alone. */
+  --chg-n2: #9cccff;
+  --chg-n1: #4f86c6;
+  --chg-z: #6f6a61;
+  --chg-p1: #c8692f;
+  --chg-p2: #ffbb73;
+  --context-cell: #45413a;
+  --falling: var(--chg-n2);
+  --rising: var(--chg-p2);
+  gap: var(--space-lg);
+}
+.territory .tr-svg-icon {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  flex: none;
+}
+.territory .tr-svg-icon.thick {
+  stroke-width: 2.4;
+}
+
+/* toolbar */
+.territory .tr-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-md) var(--space-lg);
+  padding: var(--space-md) var(--space-lg);
+}
+.territory .tr-toolbar-end {
+  display: flex;
+  gap: var(--space-sm);
+  margin-left: auto;
+}
+.territory .tr-tool {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px dashed #6b665c;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.territory .tr-tool:hover:not(:disabled) {
+  border-color: var(--rising);
+}
+.territory .tr-tool.active {
+  border-style: solid;
+  border-color: var(--rising);
+  color: var(--rising);
+}
+.territory .tr-tool.quiet {
+  border-style: solid;
+  border-color: var(--border);
+  color: var(--text-secondary);
+}
+.territory .tr-tool:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.territory .tr-range {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.territory .tr-range .orbit-select {
+  min-width: 92px;
+}
+.territory .tr-dash {
+  color: var(--text-subtle);
+  font-size: var(--text-small);
+}
+
+/* answer + map */
+.territory .tr-hero {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-lg);
+  align-items: stretch;
+}
+.territory .tr-verdict {
+  flex: 1 1 340px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 26px 26px 22px;
+}
+.territory .tr-context {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+.territory .tr-word {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  color: var(--text-secondary);
+}
+.territory .tr-verdict.falling .tr-word {
+  color: var(--falling);
+}
+.territory .tr-verdict.rising .tr-word {
+  color: var(--rising);
+}
+.territory .tr-badge {
+  width: 60px;
+  height: 60px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border: 2px solid currentColor;
+  border-radius: 50%;
+}
+.territory .tr-word h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-stretch: 90%;
+  font-weight: 700;
+  font-size: clamp(32px, 3.2vw, 44px);
+  line-height: 1;
+  letter-spacing: -0.015em;
+  color: inherit;
+}
+.territory .tr-sentence {
+  margin: 0;
+  font-size: 17px;
+  line-height: 1.5;
+  color: var(--text-primary);
+  max-width: 46ch;
+}
+.territory .tr-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+.territory .tr-stats > div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 14px 12px;
+  min-width: 0;
+}
+.territory .tr-stats > div:first-child {
+  padding-left: 0;
+}
+.territory .tr-stats > div + div {
+  border-left: 1px solid var(--border);
+}
+.territory .tr-stats dt {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.territory .tr-stats dd {
+  margin: 0;
+  font-family: var(--font-data);
+  font-size: clamp(16px, 1.35vw, 20px);
+  white-space: nowrap;
+  color: var(--text-primary);
+}
+.territory .tr-stats small {
+  font-size: 12px;
+  color: var(--text-subtle);
+}
+.territory .tr-yardstick strong {
+  font-family: var(--font-data);
+  font-weight: 500;
+  color: var(--text-primary);
+}
+.territory .tr-aside {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+.territory .tr-warn {
+  color: var(--sensor-modis);
+}
+.territory .tr-caveat {
+  margin: auto 0 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+.territory .tr-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--rising);
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+/* map */
+.territory .tr-map-panel {
+  flex: 1.8 1 520px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  padding-bottom: var(--space-lg);
+}
+.territory .tr-map-head,
+.territory .tr-chart-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  padding: var(--space-lg) var(--space-lg) var(--space-md);
+}
+.territory .tr-map-head h2,
+.territory .tr-chart-head h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 18px;
+  color: var(--text-primary);
+}
+.territory .tr-seg {
+  display: flex;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--bg);
+}
+.territory .tr-seg button {
+  min-height: 36px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.territory .tr-seg button.on {
+  background: var(--text-primary);
+  color: var(--bg);
+}
+.territory .tr-seg button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.territory .tr-draw-hint {
+  margin: 0 var(--space-lg) var(--space-sm);
+  padding: 8px 12px;
+  border: 1px solid var(--rising);
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--text-primary);
+}
+.territory .tr-draw-error {
+  margin: 0 var(--space-lg) var(--space-sm);
+}
+.territory .tr-map-panel .geo-map > svg {
+  height: min(62vh, 500px);
+}
+.territory .tr-map-panel .geo-map > svg.drawing {
+  outline: 2px solid var(--rising);
+  outline-offset: -2px;
+}
+.territory .geo-zoom button {
+  width: 40px;
+  height: 40px;
+}
+.territory .tr-chg {
+  stroke: none;
+}
+.territory .tr-chg.n2,
+.territory .tr-chg-key.n2 {
+  fill: var(--chg-n2);
+  background: var(--chg-n2);
+}
+.territory .tr-chg.n1,
+.territory .tr-chg-key.n1 {
+  fill: var(--chg-n1);
+  background: var(--chg-n1);
+}
+.territory .tr-chg.z,
+.territory .tr-chg-key.z {
+  fill: var(--chg-z);
+  background: var(--chg-z);
+}
+.territory .tr-chg.p1,
+.territory .tr-chg-key.p1 {
+  fill: var(--chg-p1);
+  background: var(--chg-p1);
+}
+.territory .tr-chg.p2,
+.territory .tr-chg-key.p2 {
+  fill: var(--chg-p2);
+  background: var(--chg-p2);
+}
+/* Period levels: a brighter ramp than the shared one, so the lowest step stands off the land. */
+.territory .tr-map-panel .geo-cell.l1,
+.territory .geo-swatch.l1 {
+  fill: #8a4a2e;
+  background: #8a4a2e;
+}
+.territory .tr-map-panel .geo-cell.l2,
+.territory .geo-swatch.l2 {
+  fill: #c2602f;
+  background: #c2602f;
+}
+.territory .tr-map-panel .geo-cell.l3,
+.territory .geo-swatch.l3 {
+  fill: #f08a3e;
+  background: #f08a3e;
+}
+.territory .tr-map-panel .geo-cell.l4,
+.territory .geo-swatch.l4 {
+  fill: #ffc17a;
+  background: #ffc17a;
+}
+.territory .tr-map-panel .geo-cell.l5,
+.territory .geo-swatch.l5 {
+  fill: #fff0d6;
+  background: #fff0d6;
+}
+/* Fire outside the area: one neutral grey, whatever its level (after the ramp, same weight). */
+.territory .tr-map-panel .geo-context .geo-cell {
+  fill: var(--context-cell);
+}
+.territory .tr-map-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 20px;
+  width: 100%;
+}
+.territory .tr-scale {
+  display: flex;
+  gap: 2px;
+}
+.territory .tr-scale > span {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 74px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.territory .tr-map-legend .tr-scale i {
+  display: block;
+  width: 100%;
+  height: 10px;
+  margin: 0;
+  border-radius: 2px;
+}
+.territory .tr-legend-note {
+  flex: 1 1 220px;
+  font-size: 12px;
+  color: var(--text-subtle);
+}
+.territory .tr-context-key {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.territory .tr-map-legend .tr-context-key i {
+  margin: 0;
+  background: var(--context-cell);
+}
+
+/* chart */
+.territory .tr-periods {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.territory .tr-period {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 40px;
+  padding: 0 6px 0 10px;
+  border: 1px solid var(--period-a);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--period-a) 12%, transparent);
+  color: var(--text-primary);
+  font-size: 13px;
+}
+.territory .tr-period.b {
+  border-color: var(--period-b);
+  background: color-mix(in srgb, var(--period-b) 12%, transparent);
+}
+.territory .tr-period-name {
+  font-weight: 700;
+  margin-right: 2px;
+}
+.territory .tr-period select {
+  height: 32px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-primary);
+  font: 600 13px var(--font-data);
+  cursor: pointer;
+}
+.territory .tr-period select option {
+  background: var(--panel);
+}
+.territory .tr-hint {
+  font-size: 12px;
+  color: var(--text-subtle);
+}
+.territory .tr-chart-panel {
+  padding-bottom: var(--space-lg);
+}
+.territory .tr-chart-wrap {
+  position: relative;
+}
+.territory .tr-chart-wrap > svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+.territory .tr-handle {
+  position: absolute;
+  width: 22px;
+  margin-left: -11px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: ew-resize;
+  touch-action: none;
+}
+/* Each handle sits just inside its period, so A's end and B's start never cover each other. */
+.territory .tr-handle.from {
+  margin-left: -4px;
+}
+.territory .tr-handle.to {
+  margin-left: -18px;
+}
+.territory .tr-handle i {
+  display: block;
+  width: 6px;
+  height: 34px;
+  border-radius: 3px;
+  background: var(--period-a);
+  box-shadow: 0 0 0 2px var(--panel);
+}
+.territory .tr-handle.b i {
+  background: var(--period-b);
+}
+.territory .tr-handle:hover i,
+.territory .tr-handle.dragging i,
+.territory .tr-handle:focus-visible i {
+  height: 48px;
+}
+.territory .tr-period-band.a {
+  fill: var(--period-a);
+  opacity: 0.1;
+}
+.territory .tr-period-band.b {
+  fill: var(--period-b);
+  opacity: 0.1;
+}
+.territory .tr-period-label {
+  font-size: 9px;
+  font-weight: 700;
+}
+.territory .tr-period-label.a {
+  fill: var(--period-a);
+}
+.territory .tr-period-label.b {
+  fill: var(--period-b);
+}
+.territory .tr-median {
+  stroke-width: 1.4;
+  stroke-dasharray: 1.5 3;
+}
+.territory .tr-median.a {
+  stroke: var(--period-a);
+}
+.territory .tr-median.b {
+  stroke: var(--period-b);
+}
+.territory .hw-swatch.line.tr-median-key {
+  border-color: var(--text-secondary);
+  border-top-style: dotted;
+}
+.territory .tr-hatch {
+  fill: var(--sensor-modis);
+  opacity: 0.3;
+}
+.territory .tr-drift-label {
+  fill: var(--sensor-modis);
+  font-size: 9px;
+  font-weight: 600;
+}
+.territory .tr-band {
+  fill: var(--text-primary);
+  opacity: 0.14;
+}
+.territory .tr-trend {
+  stroke: var(--text-secondary);
+  stroke-width: 1.2;
+  stroke-dasharray: 5 4;
+}
+.territory .hw-line.tr-ref {
+  stroke: var(--green);
+  stroke-width: 1.6;
+}
+.territory .hw-swatch.line.tr-ref {
+  border-color: var(--green);
+}
+.territory .hw-swatch.line.tr-trend {
+  border-color: var(--text-secondary);
+  border-top-style: dashed;
+}
+.territory .tr-dot {
+  fill: var(--text-primary);
+  stroke: var(--text-primary);
+  stroke-width: 1.2;
+}
+.territory .tr-dot.estimated {
+  fill: var(--panel);
+}
+.territory .tr-legend {
+  gap: 6px 18px;
+  margin-top: var(--space-sm);
+}
+.territory .tr-legend > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.territory .tr-hollow {
+  color: var(--text-subtle);
+}
+
+/* how to read */
+.territory .tr-help-toggle {
+  width: 100%;
+  min-height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  padding: 0 var(--space-lg);
+  border: 0;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.territory .tr-help-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+.territory .tr-help-hint svg {
+  transform: rotate(90deg);
+}
+.territory .tr-help-hint .tr-flip {
+  transform: rotate(-90deg);
+}
+.territory .tr-help-list {
+  margin: 0;
+  padding: 0 var(--space-lg) var(--space-lg) calc(var(--space-lg) + 18px);
+  display: grid;
+  gap: 8px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+/* verdict: the size of the change, then what the data can claim about it */
+.territory .tr-headline {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+}
+/* An unconfirmed change keeps its arrow but not the colour of a finding. */
+.territory .tr-verdict.tentative .tr-word {
+  color: var(--text-primary);
+}
+.territory .tr-verdict.tentative .tr-badge {
+  border-style: dashed;
+}
+.territory .tr-pill {
+  display: inline-block;
+  padding: 3px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0;
+  color: var(--text-secondary);
+}
+.territory .tr-pill.confirmed {
+  border-color: currentColor;
+  color: inherit;
+}
+.territory .tr-pill.untestable {
+  border-color: var(--sensor-modis);
+  color: var(--sensor-modis);
+}
+.territory .tr-dots {
+  margin: 0;
+}
+.territory .tr-dots svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+.territory .tr-dots figcaption {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--text-subtle);
+}
+.territory .tr-dots-label {
+  font: 600 10.5px var(--font-data);
+  fill: var(--text-secondary);
+}
+.territory .tr-dots-guide {
+  stroke: var(--border);
+  stroke-width: 1;
+}
+.territory .tr-dots-axis {
+  stroke: var(--border);
+}
+.territory .tr-dots-tick {
+  font: 9.5px var(--font-data);
+  fill: var(--text-subtle);
+}
+.territory .tr-dots-row.a .tr-dots-dot {
+  fill: var(--period-a);
+}
+.territory .tr-dots-row.b .tr-dots-dot {
+  fill: var(--period-b);
+}
+.territory .tr-dots-dot {
+  stroke: var(--panel);
+  stroke-width: 1.5;
+  fill-opacity: 0.9;
+}
+.territory .tr-dots-median {
+  stroke: var(--text-primary);
+  stroke-width: 2;
+}
+
+/* map: one sentence that says what the colours add up to */
+.territory .tr-map-summary {
+  margin: 0 var(--space-lg) var(--space-sm);
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+.territory .tr-map-summary strong {
+  font-weight: 600;
+}
+.territory .tr-map-summary .fell {
+  color: var(--chg-n2);
+}
+.territory .tr-map-summary .rose {
+  color: var(--chg-p2);
+}
+.territory .tr-scale em {
+  font-style: normal;
+  font-family: var(--font-data);
+  font-size: 10.5px;
+  color: var(--text-subtle);
+}
+/* "Similar" stays faint so the cells that changed carry the map. */
+.territory .tr-chg.z {
+  fill-opacity: 0.32;
+}
+.territory .tr-chg-key.z {
+  opacity: 0.45;
+}
+
+/* season picker: months counted inside every year */
+.territory .tr-season {
+  max-width: 560px;
+}
+.territory .tr-season-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.territory .tr-season-all {
+  min-height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0;
+  cursor: pointer;
+  transition:
+    background 160ms ease,
+    color 160ms ease,
+    border-color 160ms ease;
+}
+.territory .tr-season-all.on {
+  background: var(--text-primary);
+  border-color: var(--text-primary);
+  color: var(--bg);
+}
+.territory .tr-months {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--bg);
+}
+.territory .tr-months.picking {
+  border-color: var(--rising);
+}
+.territory .tr-month {
+  min-width: 34px;
+  min-height: 36px;
+  padding: 0 2px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: var(--font-data);
+  font-size: 11.5px;
+  text-transform: none;
+  letter-spacing: 0;
+  cursor: pointer;
+  transition:
+    background 140ms ease,
+    color 140ms ease;
+}
+.territory .tr-month:hover {
+  background: var(--surface-elevated);
+  color: var(--text-primary);
+}
+.territory .tr-month.on {
+  background: color-mix(in srgb, var(--rising) 26%, transparent);
+  color: var(--text-primary);
+}
+.territory .tr-month.edge {
+  background: var(--rising);
+  color: var(--bg);
+  font-weight: 600;
+}
+.territory .tr-season-note {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-secondary);
+  text-transform: none;
+  letter-spacing: 0;
+  max-width: 60ch;
+}
+.territory .tr-periods-label {
+  font-size: 12px;
+  color: var(--text-subtle);
+}
+
+/* handles: the year follows the pointer while dragging */
+.territory .tr-handle-year {
+  position: absolute;
+  top: -26px;
+  left: 50%;
+  transform: translate(-50%, 4px);
+  padding: 2px 7px;
+  border-radius: 5px;
+  background: var(--text-primary);
+  color: var(--bg);
+  font: 600 12px var(--font-data);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition:
+    opacity 140ms ease,
+    transform 140ms ease;
+}
+.territory .tr-handle:hover .tr-handle-year,
+.territory .tr-handle:focus-visible .tr-handle-year,
+.territory .tr-handle.dragging .tr-handle-year {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+.territory .tr-handle i {
+  transition: height 140ms ease;
+}
+.territory .tr-period-band,
+.territory .tr-median {
+  transition:
+    x 120ms ease,
+    width 120ms ease;
+}
+
+/* loading */
+.territory .tr-skel {
+  display: block;
+  background: linear-gradient(
+    90deg,
+    var(--surface-elevated) 0%,
+    #34312b 45%,
+    var(--surface-elevated) 90%
+  );
+  background-size: 220% 100%;
+  animation: tr-shimmer 1.3s ease-in-out infinite;
+}
+.territory .tr-skel-lines {
+  display: grid;
+  gap: 10px;
+}
+.territory .tr-stats .tr-skel + .tr-skel {
+  margin-top: 6px;
+}
+.territory .tr-chart-skel {
+  height: 300px;
+  margin: 0 var(--space-lg);
+}
+.territory .tr-map-stage {
+  position: relative;
+}
+.territory .tr-loading-pill {
+  position: absolute;
+  z-index: 2;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--panel) 92%, transparent);
+  color: var(--text-primary);
+  font-size: 12px;
+  animation: tr-fade 200ms ease both;
+}
+.territory .tr-spinner {
+  width: 13px;
+  height: 13px;
+  border: 2px solid var(--border);
+  border-top-color: var(--rising);
+  border-radius: 50%;
+  animation: tr-spin 0.8s linear infinite;
+}
+.territory .tr-map-stage .tr-change,
+.territory .tr-map-stage .geo-cells {
+  transition: opacity 220ms ease;
+}
+.territory .tr-map-stage.refreshing .tr-change,
+.territory .tr-map-stage.refreshing .tr-fade-in .geo-cells {
+  opacity: 0.45;
+}
+
+/* motion */
+.territory .tr-fade-in {
+  animation: tr-fade 320ms ease both;
+}
+.territory .tr-pop {
+  animation: tr-pop 380ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.territory .tr-draw {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: tr-draw 900ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+.territory .tr-dot-in {
+  animation: tr-fade 260ms ease both;
+}
+.territory .tr-help-list {
+  animation: tr-slide 240ms ease both;
+}
+.territory .tr-seg button {
+  transition:
+    background 160ms ease,
+    color 160ms ease;
+}
+.territory .tr-help-hint svg {
+  transition: transform 200ms ease;
+}
+.territory .tr-hero > .panel,
+.territory .tr-chart-panel {
+  animation: tr-rise 360ms ease both;
+}
+.territory .tr-hero > .tr-map-panel {
+  animation-delay: 60ms;
+}
+.territory .tr-chart-panel {
+  animation-delay: 120ms;
+}
+@keyframes tr-shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
+}
+@keyframes tr-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes tr-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes tr-pop {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes tr-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes tr-slide {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes tr-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .territory *,
+  .territory *::before,
+  .territory *::after {
+    animation-duration: 1ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+  }
+  .territory .tr-draw {
+    stroke-dasharray: none;
+    stroke-dashoffset: 0;
+  }
+}
+
+@media (max-width: 640px) {
+  .territory .tr-month {
+    min-width: 0;
+    font-size: 10.5px;
+  }
+  .territory .tr-toolbar-end {
+    margin-left: 0;
+  }
+  .territory .tr-stats dd {
+    font-size: 17px;
+  }
+  .territory .tr-scale > span {
+    width: 56px;
+  }
+}

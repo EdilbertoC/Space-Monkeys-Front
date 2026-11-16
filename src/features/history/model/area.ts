@@ -7,7 +7,8 @@ export type AreaChoice =
   | { kind: "country"; country: "BR" }
   | { kind: "bbox"; bbox: string };
 
-export const DEFAULT_AREA: AreaChoice = { kind: "biome", biome: "Pantanal" };
+/** Every page opens on the whole of Brazil; a biome or a box is the user's choice. */
+export const DEFAULT_AREA: AreaChoice = { kind: "country", country: "BR" };
 
 export function areaSelector(area: AreaChoice): AreaSelector {
   if (area.kind === "biome") return { biome: area.biome };

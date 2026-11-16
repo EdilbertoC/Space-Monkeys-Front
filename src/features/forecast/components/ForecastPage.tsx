@@ -11,25 +11,46 @@ import { Icon, PanelTitle } from "../../../shared/ui/ui";
 import { Card, PanelState, describeError } from "../../history/components/HistoryParts";
 import { longDate } from "../../history/model/history-view";
 import { ForecastLayer, GeoMap } from "../../map/components/GeoMap";
+import { MapHint, MapLegend, MapStage } from "../../map/components/MapParts";
+import type { AreaChoice } from "../../history/model/area";
+import OutlookPanel from "./OutlookPanel";
 
 type Forecast = Schemas["Forecast"];
+
+const FORECAST_STEPS = [
+  ["fc1", "5–15%"],
+  ["fc2", "15–30%"],
+  ["fc3", "30–50%"],
+  ["fc4", "50% +"],
+] as const;
 
 export function useForecast(minP = 0.05) {
   return useApi((signal) => forecastApi.getForecast({ min_p: minP }, { signal }), [minP]);
 }
 
-export default function ForecastPage() {
+export default function ForecastPage({ area }: { area: AreaChoice }) {
   const forecast = useForecast();
   const model = useApi((signal) => forecastApi.getModel({ signal }), []);
   const [lead, setLead] = useState(0);
 
+  if (forecast.status === "error")
+    return (
+      <div className="history-workspace">
+        <section className="panel forecast-empty">
+          <PanelTitle
+            title="No forecast on this server yet"
+            subtitle="The forecast is fed with near-real-time VIIRS detections from NASA FIRMS. Until this server has them, it cannot issue one. The model and its test scores are below."
+          />
+          <p className="hw-note hw-pad">
+            <Icon name="info" size={13} /> {describeError(forecast.error)}
+          </p>
+        </section>
+        {model.status === "success" && <ModelCard model={model.data} />}
+      </div>
+    );
+
   return (
     <div className="history-workspace">
-      {forecast.status === "error" && (
-        <p className="hw-note warn">
-          <Icon name="info" size={13} /> No forecast to show: {describeError(forecast.error)}
-        </p>
-      )}
       <div className="hw-kpis">
         <Card title="Issued for" state={forecast}>
           {forecast.data && (
@@ -65,6 +86,8 @@ export default function ForecastPage() {
         </Card>
       </div>
 
+      <OutlookPanel area={area} />
+
       <section className="panel hw-map-panel">
         <PanelTitle
           title="Probability of a VIIRS fire detection"
@@ -85,33 +108,39 @@ export default function ForecastPage() {
             </div>
           )}
         </PanelTitle>
-        {forecast.status === "loading" ? (
-          <PanelState />
-        ) : (
+        <MapHint />
+        <MapStage firstLoad={forecast.status === "loading"} loadingLabel="Loading forecast…">
           <GeoMap
             bounds={BRAZIL_BOUNDS}
             large
             label="Fire probability per 0.25° cell"
             legend={
-              <>
-                <span>
-                  <i className="geo-swatch fc1" /> 5–15% <i className="geo-swatch fc2" /> 15–30%{" "}
-                  <i className="geo-swatch fc3" /> 30–50% <i className="geo-swatch fc4" /> ≥ 50%
+              <MapLegend
+                steps={FORECAST_STEPS}
+                note={
+                  forecast.data
+                    ? `Chance that VIIRS detects fire in each ${forecast.data.resolution_deg}° cell on ${longDate(forecast.data.valid_dates[lead] ?? forecast.data.issued_for)}. Cells under 5% are not drawn.`
+                    : "Loading forecast…"
+                }
+              >
+                <span className="geo-legend-key">
+                  <i className="geo-swatch fc-anchored" /> Raised by a live fire
                 </span>
-                <span>White outline: raised by a live fire</span>
-              </>
+              </MapLegend>
             }
           >
             {forecast.data && (
-              <ForecastLayer
-                cells={forecast.data.cells}
-                lead={lead}
-                resolution={forecast.data.resolution_deg}
-                date={forecast.data.valid_dates[lead] ?? ""}
-              />
+              <g className="geo-fade-in" key={lead}>
+                <ForecastLayer
+                  cells={forecast.data.cells}
+                  lead={lead}
+                  resolution={forecast.data.resolution_deg}
+                  date={forecast.data.valid_dates[lead] ?? ""}
+                />
+              </g>
             )}
           </GeoMap>
-        )}
+        </MapStage>
       </section>
 
       <RegionTable />
@@ -254,7 +283,7 @@ export function ForecastSummary({ onOpen }: { onOpen: () => void }) {
       ) : (
         <small>
           {forecast.status === "error"
-            ? `Unavailable: ${describeError(forecast.error)}`
+            ? "No forecast on this server yet: it needs near-real-time FIRMS data."
             : "Loading…"}
         </small>
       )}
